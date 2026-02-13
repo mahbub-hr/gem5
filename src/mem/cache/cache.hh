@@ -170,6 +170,14 @@ class Cache : public BaseCache
      * @return True if the port is waiting for a retry
      */
     bool sendMSHRQueuePacket(MSHR* mshr) override;
+
+    /**
+     * Corrupts a specific bit in the storage of a specific address.
+     * @param addr The Physical Address to target.
+     * @param bit_position The bit index (0 to 511 for 64B lines) to flip.
+     * @return true if the block was found and corrupted, false otherwise.
+     */
+    bool corruptStoredBlock(Addr addr, int bit_position);
 };
 
 } // namespace gem5

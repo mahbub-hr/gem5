@@ -1496,4 +1496,48 @@ Cache::sendMSHRQueuePacket(MSHR* mshr)
     return BaseCache::sendMSHRQueuePacket(mshr);
 }
 
+bool
+Cache::corruptStoredBlock(Addr addr, int bit_position)
+{
+    // 1. Ask the Tag Store if this address is currently present
+    // 'tags' is the internal Gem5 object managing Sets and Ways
+    CacheBlk *blk = tags->findBlock({addr, false});
+
+    // 2. If the block exists (Hit), we corrupt it
+    if (blk && blk->isValid()) {
+
+        // 3. Access the raw data storage of the block
+        // blk->data is a uint8_t pointer to the actual bytes
+        uint8_t *raw_data = blk->data;
+
+        // 4. Calculate Byte and Bit offset
+        // Assuming 64-byte cache lines, bit_position 0-511
+        int byte_offset = bit_position / 8;
+        int bit_rem = bit_position % 8;
+
+        // Sanity Check: Don't segfault if bit is too high
+        if (byte_offset < blkSize) {
+
+            // 5. THE FLIP (Modify the storage directly)
+            raw_data[byte_offset] ^= (1 << bit_rem);
+
+            // OPTIONAL: Mark the block as "Modified" (Dirty)
+            // If you don't do this, and the block is Clean, the cache might
+            // silently discard your corruption when evicting, assuming it
+            // matches RAM. In a real SEU, the cache controller DOESN'T know
+            // it's dirty, so NOT setting this is actually more realistic
+            // (Silent Data Corruption).
+            // blk->setCoherenceBits(CacheBlk::DirtyBit);
+
+            DPRINTF(Cache,
+                    "!!! STORAGE FAULT: Corrupted Byte %d, Val: %#x !!!\n",
+                    byte_offset, raw_data[byte_offset]);
+
+            return true; // Success
+        }
+    }
+
+    return false; // Address was not in cache
+}
+
 } // namespace gem5
