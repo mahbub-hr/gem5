@@ -16,6 +16,7 @@ class FaultInjector : public SimObject
 
   private:
     Tick injectTick;
+    Addr targetAddress;
     int targetBit;
     Cache *targetCache;
 

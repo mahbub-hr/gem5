@@ -117,4 +117,40 @@ BaseSetAssoc::moveBlock(CacheBlk *src_blk, CacheBlk *dest_blk)
     replacementPolicy->reset(dest_blk->replacementData);
 }
 
+// src/mem/cache/tags/base_set_assoc.cc
+
+void
+BaseSetAssoc::corruptSetByAddr(Addr addr)
+{
+    // 1. Calculate the Set Index from the physical address
+    // 'extractSet' is a helper function built into this class
+    // unsigned set_index = extractSet(addr);
+
+    // DPRINTF(Cache, "!!! SET FAULT: Targeting Set %d (Addr %#x) !!!\n", set_index, addr);
+
+    // // 2. Iterate over all Ways in this specific Set
+    // // 'assoc' is the associativity (e.g., 8)
+    // for (int way = 0; way < assoc; ++way) {
+        
+    //     // 3. Get the Block pointer
+    //     // In modern gem5, 'sets' is a vector of Set objects, which contain blocks
+    //     CacheBlk *blk = sets[set_index].blks[way];
+
+    //     // 4. Corrupt the block if it is valid
+    //     if (blk && blk->isValid()) {
+            
+    //         // Access the data pointer
+    //         uint8_t *data = blk->data;
+            
+    //         // DESTROY DATA: Flip the first byte of the block
+    //         // (Or memset the whole thing to 0xFF if you want total destruction)
+    //         data[0] ^= 0xFF; 
+            
+    //         // Mark as Dirty so it gets written back to memory eventually
+    //         blk->setCoherenceBits(CacheBlk::DirtyBit);
+
+    //         DPRINTF(Cache, " -> Corrupted Way %d in Set %d\n", way, set_index);
+    //     }
+    // }
+}
 } // namespace gem5

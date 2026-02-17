@@ -253,6 +253,8 @@ class BaseSetAssoc : public BaseTags
         }
         return false;
     }
+
+    void corruptSetByAddr(Addr addr);
 };
 
 } // namespace gem5

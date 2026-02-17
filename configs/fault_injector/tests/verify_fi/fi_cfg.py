@@ -2,11 +2,12 @@ import m5
 from m5.objects import *
 
 config = {
-    "inject_tick": 123885567000,
-    "target_address": 0xb4d40,
-    "target_bit":0,
+    "inject_tick": 8983355000,
+    "target_address": 0xb4cd0,
+    "target_bit":128,
     "target_component": "dcache",
-    "cmd": "verify_fi",
+    # run from /work/host/gem5/configs/fault_injector
+    "cmd": "/work/host/gem5/configs/fault_injector/tests/verify_fi/verify_fi.bin",
 }
 
 
@@ -16,12 +17,12 @@ system.clk_domain.clock = "1GHz"
 system.clk_domain.voltage_domain = VoltageDomain()
 
 system.mem_mode = "timing"
-system.mem_ranges = [AddrRange("512MB")]
+system.mem_ranges = [AddrRange("512MiB")]
 system.cpu = TimingSimpleCPU()
 system.cpu.isa = [X86ISA() for i in range(system.cpu.numThreads)]
 
 system.cpu.dcache = Cache(
-    size="8kB",
+    size="8KiB",
     assoc=2,
     tag_latency=2,
     data_latency=2,
@@ -57,7 +58,6 @@ system.mem_ctrl.dram.range = system.mem_ranges[0]
 system.mem_ctrl.port = system.membus.mem_side_ports
 system.system_port = system.membus.cpu_side_ports
 
-# --- FIX 2: Create a Dummy Workload ---
 # The CPU needs a process to run, even if we are just testing the config.
 # We create a dummy process "stub" so gem5 initializes the threads correctly.
 

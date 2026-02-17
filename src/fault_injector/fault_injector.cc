@@ -1,5 +1,5 @@
 #include "fault_injector/fault_injector.hh"
-#include "debug/Faults.hh" // You need to define this debug flag
+#include "debug/FI.hh" // You need to define this debug flag
 
 #include <iostream>
 
@@ -8,6 +8,7 @@ namespace gem5
 FaultInjector::FaultInjector(const FaultInjectorParams &p)
     : SimObject(p),
       injectTick(p.inject_tick),
+      targetAddress(p.target_address),
       targetBit(p.target_bit),
       // We cast the generic SimObject param to a Cache pointer
       targetCache(dynamic_cast<Cache *>(p.target_object)),
@@ -31,24 +32,21 @@ FaultInjector::startup()
 void
 FaultInjector::processEvent()
 {
-    // We assume you want to target a specific address (from your trace)
-    // Or you can pick a random Set/Way if you prefer.
+    DPRINTF(FI,
+                "FaultInjector: Trying dcache bit flip at %#x on Tick %lu\n",
+                targetAddress, curTick());
 
-    // Example: Corrupt the Physical Address we care about (0x8d000)
-    // You can make this a parameter: p.target_address
-    Addr victimAddr = 0x8d000;
-
-    bool success = targetCache->corruptStoredBlock(victimAddr, targetBit);
+    bool success = targetCache->corruptStoredBlock(targetAddress, targetBit);
 
     if (success) {
-        DPRINTF(Faults,
+        DPRINTF(FI,
                 "FaultInjector: SRAM Bit Flip injected at %#x on Tick %lu\n",
-                victimAddr, curTick());
+                targetAddress, curTick());
     } else {
-        DPRINTF(Faults,
+        DPRINTF(FI,
                 "FaultInjector: Missed! Address %#x was not in cache at Tick "
                 "%lu\n",
-                victimAddr, curTick());
+                targetAddress, curTick());
     }
 }
 } // namespace gem5

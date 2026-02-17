@@ -64,6 +64,7 @@
 #include "mem/request.hh"
 #include "params/Cache.hh"
 
+#include "debug/FI.hh" // You need to define this debug flag
 namespace gem5
 {
 
@@ -1502,6 +1503,10 @@ Cache::corruptStoredBlock(Addr addr, int bit_position)
     // 1. Ask the Tag Store if this address is currently present
     // 'tags' is the internal Gem5 object managing Sets and Ways
     CacheBlk *blk = tags->findBlock({addr, false});
+    
+    blk->print();
+    DPRINTF(FI, "Attempting to corrupt address %#x, bit position %d"
+            "blk: %s\n", addr, bit_position);
 
     // 2. If the block exists (Hit), we corrupt it
     if (blk && blk->isValid()) {
@@ -1517,9 +1522,8 @@ Cache::corruptStoredBlock(Addr addr, int bit_position)
 
         // Sanity Check: Don't segfault if bit is too high
         if (byte_offset < blkSize) {
-
             // 5. THE FLIP (Modify the storage directly)
-            raw_data[byte_offset] ^= (1 << bit_rem);
+            raw_data[byte_offset] = 0;
 
             // OPTIONAL: Mark the block as "Modified" (Dirty)
             // If you don't do this, and the block is Clean, the cache might
@@ -1527,11 +1531,12 @@ Cache::corruptStoredBlock(Addr addr, int bit_position)
             // matches RAM. In a real SEU, the cache controller DOESN'T know
             // it's dirty, so NOT setting this is actually more realistic
             // (Silent Data Corruption).
+
             // blk->setCoherenceBits(CacheBlk::DirtyBit);
 
-            DPRINTF(Cache,
-                    "!!! STORAGE FAULT: Corrupted Byte %d, Val: %#x !!!\n",
-                    byte_offset, raw_data[byte_offset]);
+            DPRINTF(FI,
+                    "!!! STORAGE FAULT: Corrupted Byte %d, Val: %#x, BLK size: %d !!!\n",
+                    byte_offset, raw_data[byte_offset], blkSize);
 
             return true; // Success
         }

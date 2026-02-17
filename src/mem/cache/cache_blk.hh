@@ -101,7 +101,7 @@ class CacheBlk : public TaggedEntry
      * data stored here should be kept consistant with the actual data
      * referenced by this block.
      */
-    uint8_t *data = nullptr;
+    uint8_t * data = nullptr;
 
     /**
      * Which curTick() will this block be accessible. Its value is only

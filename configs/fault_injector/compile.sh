@@ -4,4 +4,6 @@ if [[ $# -lt 1 ]]; then
     exit 1
 fi
 
-clang++ -o0 -static $1 -o verify_fi
+filename=$(basename "${1%.*}")
+dirname=$(dirname "$1")
+clang++ -o0 -static $1 -o ${dirname}/${filename}.bin
