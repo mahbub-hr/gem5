@@ -44,8 +44,9 @@
  */
 
 #include "mem/cache/tags/base_set_assoc.hh"
-
+#include "debug/FI.hh"
 #include <string>
+#include <iomanip> 
 
 #include "base/intmath.hh"
 
@@ -152,5 +153,20 @@ BaseSetAssoc::corruptSetByAddr(Addr addr)
     //         DPRINTF(Cache, " -> Corrupted Way %d in Set %d\n", way, set_index);
     //     }
     // }
+}
+
+void BaseSetAssoc::dumpCacheContent() {
+    for(unsigned set=0; set < blks.size() / allocAssoc; set++){
+        for(unsigned way=0; way < allocAssoc; way++){
+            CacheBlk* blk = static_cast<CacheBlk*>(findBlockBySetAndWay(set, way));
+            std::stringstream ss;
+            ss << std::hex << std::setfill('0');
+            for(unsigned i=0; i < blkSize; i++) {
+                ss << std::setw(2) << (unsigned)(blk->data[i]) << " ";
+            }
+            DPRINTF(FI, "Set %02x, Way %d: %s || ", set, way, ss.str());
+        }
+        DPRINTF(FI, "\n");
+    }
 }
 } // namespace gem5

@@ -7,25 +7,31 @@ namespace gem5
 {
 FaultInjector::FaultInjector(const FaultInjectorParams &p)
     : SimObject(p),
-      injectTick(p.inject_tick),
-      targetAddress(p.target_address),
-      targetBit(p.target_bit),
-      // We cast the generic SimObject param to a Cache pointer
+      injectionSchedule(p.inject_ticks),
+      currentInjectionIndex(0),
       targetCache(dynamic_cast<Cache *>(p.target_object)),
+      dumpCacheContent(p.dump_cache_content),
+      sets(p.target_sets),
+      ways(p.target_ways),
+      bytePositions(p.target_byte_positions),
+      lengths(p.target_lengths),
       injectEvent([this] { processEvent(); }, name())
 {
-    std::cout << "Hello world! From a simobject " << std::endl;
     if (!targetCache) {
         fatal("FaultInjector: target_object is not a Cache!");
     }
+    std::sort(injectionSchedule.begin(), injectionSchedule.end());
 }
 
 void
 FaultInjector::startup()
 {
-    // Schedule the event only if the tick is in the future
-    if (injectTick > curTick()) {
-        schedule(injectEvent, injectTick);
+    // Schedule the FIRST event (if the list isn't empty)
+    if (!injectionSchedule.empty()) {
+        Tick firstTick = injectionSchedule[0];
+        
+        if (firstTick > curTick()) {
+            schedule(injectEvent, firstTick);        }
     }
 }
 
@@ -33,20 +39,45 @@ void
 FaultInjector::processEvent()
 {
     DPRINTF(FI,
-                "FaultInjector: Trying dcache bit flip at %#x on Tick %lu\n",
-                targetAddress, curTick());
+                "FaultInjector: set=%d, way=%d, byte_pos=%d, length=%d\n",
+                sets[currentInjectionIndex],
+                ways[currentInjectionIndex],
+                bytePositions[currentInjectionIndex],
+                lengths[currentInjectionIndex]);
+    
+    bool success = targetCache->MBU(
+            sets[currentInjectionIndex], 
+            ways[currentInjectionIndex], 
+            bytePositions[currentInjectionIndex], 
+            lengths[currentInjectionIndex]
+        );
 
-    bool success = targetCache->corruptStoredBlock(targetAddress, targetBit);
+    if(dumpCacheContent){
+        targetCache->dumpCacheContent();
+    }
 
     if (success) {
         DPRINTF(FI,
-                "FaultInjector: SRAM Bit Flip injected at %#x on Tick %lu\n",
-                targetAddress, curTick());
+                "FaultInjector: Success!\n"
+                );
     } else {
         DPRINTF(FI,
-                "FaultInjector: Missed! Address %#x was not in cache at Tick "
-                "%lu\n",
-                targetAddress, curTick());
+                "FaultInjector: Missed!\n"
+                );
+    }
+
+    // 3. SCHEDULE THE NEXT EVENT
+    currentInjectionIndex++; // Move to next item in list
+
+    // Check if there are more injections left
+    if (currentInjectionIndex < injectionSchedule.size()) {
+        Tick nextTick = injectionSchedule[currentInjectionIndex];
+        // already sorted, so just take the next one
+        schedule(injectEvent, nextTick);
+        DPRINTF(FI, "FaultInjector: Next fault scheduled for Tick %lu\n", nextTick);
+        
+    } else {
+        DPRINTF(FI, "FaultInjector: All injections completed.\n");
     }
 }
 } // namespace gem5

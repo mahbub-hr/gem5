@@ -15,10 +15,14 @@ class FaultInjector : public SimObject
     void startup() override;
 
   private:
-    Tick injectTick;
-    Addr targetAddress;
-    int targetBit;
+    size_t currentInjectionIndex;
+    std::vector<Tick> injectionSchedule;
+    std::vector<uint32_t> sets;
+    std::vector<uint32_t> ways;
+    std::vector<uint32_t> bytePositions;
+    std::vector<uint32_t> lengths;
     Cache *targetCache;
+    bool dumpCacheContent = false;
 
     void processEvent();
     EventFunctionWrapper injectEvent;

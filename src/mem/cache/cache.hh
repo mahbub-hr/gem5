@@ -178,6 +178,8 @@ class Cache : public BaseCache
      * @return true if the block was found and corrupted, false otherwise.
      */
     bool corruptStoredBlock(Addr addr, int bit_position);
+    void dumpCacheContent();
+    bool MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint32_t numOfBytes);
 };
 
 } // namespace gem5

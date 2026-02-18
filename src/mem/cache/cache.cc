@@ -65,6 +65,10 @@
 #include "params/Cache.hh"
 
 #include "debug/FI.hh" // You need to define this debug flag
+// Add these includes at the top if missing
+#include "mem/cache/tags/base_set_assoc.hh"
+#include <iomanip> // For hex formatting
+
 namespace gem5
 {
 
@@ -1524,16 +1528,7 @@ Cache::corruptStoredBlock(Addr addr, int bit_position)
         if (byte_offset < blkSize) {
             // 5. THE FLIP (Modify the storage directly)
             raw_data[byte_offset] = 0;
-
-            // OPTIONAL: Mark the block as "Modified" (Dirty)
-            // If you don't do this, and the block is Clean, the cache might
-            // silently discard your corruption when evicting, assuming it
-            // matches RAM. In a real SEU, the cache controller DOESN'T know
-            // it's dirty, so NOT setting this is actually more realistic
-            // (Silent Data Corruption).
-
-            // blk->setCoherenceBits(CacheBlk::DirtyBit);
-
+            
             DPRINTF(FI,
                     "!!! STORAGE FAULT: Corrupted Byte %d, Val: %#x, BLK size: %d !!!\n",
                     byte_offset, raw_data[byte_offset], blkSize);
@@ -1545,4 +1540,44 @@ Cache::corruptStoredBlock(Addr addr, int bit_position)
     return false; // Address was not in cache
 }
 
+void Cache::dumpCacheContent()
+{
+    // We cast the tags to BaseSetAssoc to access set-specific logic
+    BaseSetAssoc *set_tags = dynamic_cast<BaseSetAssoc*>(tags);
+    
+    if (!set_tags) {
+        warn("Cannot dump cache: Tags are not Set-Associative.\n");
+        return;
+    }
+
+   set_tags->dumpCacheContent();
+
+}
+
+bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint32_t numOfBytes){
+    BaseSetAssoc *set_tags = dynamic_cast<BaseSetAssoc*>(tags);
+    
+    if (!set_tags) {
+        warn("Cannot perform MBU: Tags are not Set-Associative.\n");
+        return false;
+    }
+
+    CacheBlk *blk = static_cast<CacheBlk*>(set_tags->findBlockBySetAndWay(set, way));
+    if (!blk) {
+        warn("Cannot perform MBU: Block not found at set %d, way %d.\n", set, way);
+        return false;
+    }
+
+    if(!blk->isValid()) {
+        warn("Cannot perform MBU: Block at set %d, way %d is not valid.\n", set, way);
+        return true; // Todo : return false or true? If block is not valid, it means it doesn't have valid data, so we can consider it as already "corrupted" for the purpose of MBU. Returning true to indicate MBU is effectively done, even though we didn't flip any bits.
+    }
+
+    for(int i =0; i< numOfBytes; i++){
+        blk->data[bytePos + i] = 0xaa; // Todo: take random value instead of 0x00;
+    }
+
+    blk->data[bytePos] = 0; 
+    return true;
+}
 } // namespace gem5
