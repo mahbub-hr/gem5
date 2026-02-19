@@ -16,8 +16,8 @@ options = parser.parse_args()
 # -------------------------------------------------------------------------
 # 2. Configuration Constants & Setup
 # -------------------------------------------------------------------------
-L1DCACHE_SIZE = 8192  # 8KB
-L1DCACHE_ASSOC = 2  
+L1DCACHE_SIZE = 32*1024  # 32KB
+L1DCACHE_ASSOC = 8  
 L1DCACHE_BLOCK_SIZE = 64  # 64B
 NUM_SETS = L1DCACHE_SIZE // (L1DCACHE_ASSOC * L1DCACHE_BLOCK_SIZE)  # 64 sets
 BITS_PER_BYTE = 8
@@ -30,7 +30,7 @@ config = {
     "seed" : 42,
     "dump_cache_content": False,
     # run from /work/host/gem5/configs/fault_injector
-    "cmd": "/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul.bin",
+    "cmd": "/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_o3.bin",
 }
 
 random.seed()  # For reproducibility
@@ -118,12 +118,12 @@ if not options.profile:
         w = random.randint(0, L1DCACHE_ASSOC - 1)
         
         # B. Random Byte Offset within the block (0 to 63)
-        b_pos = random.randint(0, L1DCACHE_BLOCK_SIZE - 1)
+        b_pos = 0 #random.randint(0, L1DCACHE_BLOCK_SIZE - 1)
         
         # C. Random Length (Must fit inside the remaining block space)
         # Example: If block is 64 bytes and we start at byte 60, max length is 4.
         max_len = L1DCACHE_BLOCK_SIZE - b_pos
-        num_bytes = random.randint(1, max_len)
+        num_bytes = L1DCACHE_BLOCK_SIZE #random.randint(1, max_len)
 
         # D. Append to lists
         target_sets.append(s)

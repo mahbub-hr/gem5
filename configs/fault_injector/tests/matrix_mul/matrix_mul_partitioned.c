@@ -3,8 +3,8 @@
  * All rights reserved.
  * @author Mahbub Hossain
  * @date 2026-02-18
- * @brief This code demonstrates how cache block conflicts can lead to 
- * an increase in silent data corruption in a matrix multiplication program.
+ * @brief This code demonstrates how cache partitioning can reduce
+ *  silent data corruption in a matrix multiplication program.
  */
 
 
@@ -14,13 +14,13 @@
 #define N 16
 
 // Each matrix is placed in its own named section and aligned to a page boundary
-double A[N][N] __attribute__((section(".data_primary"), aligned(4096)));
-double B[N][N] __attribute__((section(".data_primary"), aligned(4096)));
-double C[N][N] __attribute__((section(".data_primary"), aligned(4096)));
+double A[N][N] __attribute__((section(".data_primary")));
+double B[N][N] __attribute__((section(".data_primary")));
+double C[N][N] __attribute__((section(".data_primary")));
 
-double A_shadow[N][N] __attribute__((section(".data_shadow"), aligned(4096)));
-double B_shadow[N][N] __attribute__((section(".data_shadow"), aligned(4096)));
-double C_shadow[N][N] __attribute__((section(".data_shadow"), aligned(4096)));
+double A_shadow[N][N] __attribute__((section(".data_shadow")));
+double B_shadow[N][N] __attribute__((section(".data_shadow")));
+double C_shadow[N][N] __attribute__((section(".data_shadow")));
 
 void error(){
     printf("Error: Mismatch between C and C_shadow\n");
@@ -47,6 +47,7 @@ void matrix_mul() {
                 if(A[i][k] != A_shadow[i][k] || B[k][j] != B_shadow[k][j]) {
                     error();
                 }
+                // Todo: performance improvement with CLFLUSH()
                 C[i][j] += A[i][k] * B[k][j];
                 C_shadow[i][j] += A_shadow[i][k] * B_shadow[k][j];
             }
