@@ -10,6 +10,7 @@
 
 #include<stdio.h>
 #include<stdlib.h>
+#include<immintrin.h>
 
 #define N 16
 
@@ -44,14 +45,18 @@ void matrix_mul() {
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             for (int k = 0; k < N; k++) {
-                if(A[i][k] != A_shadow[i][k] || B[k][j] != B_shadow[k][j]) {
+                if(A[i][k] != A_shadow[i][k] || B[j][k] != B_shadow[j][k]) {
                     error();
                 }
+                // _mm_clflush(&A[i][k]);
                 // Todo: performance improvement with CLFLUSH()
-                C[i][j] += A[i][k] * B[k][j];
-                C_shadow[i][j] += A_shadow[i][k] * B_shadow[k][j];
+                C[i][j] += A[i][k] * B[j][k];
+                C_shadow[i][j] = C[i][j];
             }
+            _mm_clflush(B_shadow[j]);
         }
+        _mm_clflush(A_shadow[i]);
+        _mm_clflush(C_shadow[i]);
     }
 }
 
@@ -64,6 +69,7 @@ void print_result() {
             }
             printf("%f ", C[i][j]);
         }
+        _mm_clflush(C_shadow[i]);
         printf("\n");
     }
 }

@@ -30,7 +30,7 @@ config = {
     "seed" : 42,
     "dump_cache_content": False,
     # run from /work/host/gem5/configs/fault_injector
-    "cmd": "/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_o3.bin",
+    "cmd": "/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_.bin",
 }
 
 random.seed()  # For reproducibility
