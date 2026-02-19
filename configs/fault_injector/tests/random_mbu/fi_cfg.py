@@ -9,6 +9,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--profile", action="store_true", help="Run without injection to get max ticks")
 parser.add_argument("--max-tick", type=int, default=0, help="The max tick of the binary from profile run.")
+parser.add_argument("--output-file", type=str, default="program_output.txt", help="File to store program output")
 # ... other args ...
 options = parser.parse_args()
 
@@ -21,14 +22,15 @@ L1DCACHE_BLOCK_SIZE = 64  # 64B
 NUM_SETS = L1DCACHE_SIZE // (L1DCACHE_ASSOC * L1DCACHE_BLOCK_SIZE)  # 64 sets
 BITS_PER_BYTE = 8
 BITS_PER_BLOCK = L1DCACHE_BLOCK_SIZE * BITS_PER_BYTE  # 512 bits per block
+PROGRAM_OUTPUT = options.output_file if options.output_file else "program_output.txt"
 
 config = {
-    "num_injections": 15,
+    "num_injections": 1,
     "target_component": "dcache",
     "seed" : 42,
     "dump_cache_content": False,
     # run from /work/host/gem5/configs/fault_injector
-    "cmd": "/work/host/gem5/configs/fault_injector/tests/random_mbu/verify_fi.bin",
+    "cmd": "/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul.bin",
 }
 
 random.seed()  # For reproducibility
@@ -42,7 +44,7 @@ system.clk_domain.clock = "1GHz"
 system.clk_domain.voltage_domain = VoltageDomain()
 
 system.mem_mode = "timing"
-system.mem_ranges = [AddrRange("512MiB")]
+system.mem_ranges = [AddrRange("4GiB")]
 system.cpu = TimingSimpleCPU()
 system.cpu.isa = [X86ISA() for i in range(system.cpu.numThreads)]
 
@@ -84,10 +86,12 @@ system.system_port = system.membus.cpu_side_ports
 # -------------------------------------------------------------------------
 # 5. Process Setup
 # -------------------------------------------------------------------------
-
+import os
 system.workload = SEWorkload.init_compatible(config["cmd"])
 process = Process()
-process.cmd = [config["cmd"]]  # Dummy command
+process.cmd = [config["cmd"]]
+process.output = os.path.join(PROGRAM_OUTPUT)
+process.errout = os.path.join(PROGRAM_OUTPUT)
 system.cpu.workload = process
 system.cpu.createThreads()
 
@@ -107,8 +111,6 @@ if not options.profile:
     target_byte_positions = []
     target_lengths = []
     random_values = []
-
-    print(f"--- Generating {NUM_INJECTIONS} Fault Scenarios ---")
 
     for i in range(NUM_INJECTIONS):
         # A. Random Set and Way

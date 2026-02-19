@@ -1,17 +1,24 @@
+/**
+ * @author Mahbub Hossain
+ * @date 2024-06-01
+ * @brief This code demonstrates how cache block conflicts can lead to 
+ * an increase in silent data corruption in a matrix multiplication program.
+ */
+
+
 #include<stdio.h>
 #include<stdlib.h>
 
 #define N 16
 
-// Todo: add checkpoint for speedup.
 // Each matrix is placed in its own named section and aligned to a page boundary
-int A[N][N];
-int B[N][N];
-int C[N][N];
+double A[N][N] __attribute__((section(".data_primary"), aligned(4096)));
+double B[N][N] __attribute__((section(".data_primary"), aligned(4096)));
+double C[N][N] __attribute__((section(".data_primary"), aligned(4096)));
 
-int A_shadow[N][N];
-int B_shadow[N][N];
-int C_shadow[N][N];
+double A_shadow[N][N] __attribute__((section(".data_shadow"), aligned(4096)));
+double B_shadow[N][N] __attribute__((section(".data_shadow"), aligned(4096)));
+double C_shadow[N][N] __attribute__((section(".data_shadow"), aligned(4096)));
 
 void error(){
     printf("Error: Mismatch between C and C_shadow\n");
@@ -52,7 +59,7 @@ void print_result() {
             if(C[i][j] != C_shadow[i][j]) {
                 error();
             }
-            printf("%d ", C[i][j]);
+            printf("%f ", C[i][j]);
         }
         printf("\n");
     }

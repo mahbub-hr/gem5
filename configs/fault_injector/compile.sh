@@ -6,4 +6,4 @@ fi
 
 filename=$(basename "${1%.*}")
 dirname=$(dirname "$1")
-clang++ -o0 -static $1 -o ${dirname}/${filename}.bin
+clang -o0 -static $1 -o ${dirname}/${filename}.bin
