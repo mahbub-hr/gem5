@@ -179,7 +179,7 @@ class Cache : public BaseCache
      */
     bool corruptStoredBlock(Addr addr, int bit_position);
     void dumpCacheContent();
-    bool MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint32_t numOfBytes);
+    bool MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t);
 };
 
 } // namespace gem5

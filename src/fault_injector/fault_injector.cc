@@ -14,7 +14,7 @@ FaultInjector::FaultInjector(const FaultInjectorParams &p)
       sets(p.target_sets),
       ways(p.target_ways),
       bytePositions(p.target_byte_positions),
-      lengths(p.target_lengths),
+      byteMasks(p.target_byte_masks),
       injectEvent([this] { processEvent(); }, name())
 {
     if (!targetCache) {
@@ -43,13 +43,13 @@ FaultInjector::processEvent()
                 sets[currentInjectionIndex],
                 ways[currentInjectionIndex],
                 bytePositions[currentInjectionIndex],
-                lengths[currentInjectionIndex]);
+                byteMasks[currentInjectionIndex]);
     
     bool success = targetCache->MBU(
             sets[currentInjectionIndex], 
             ways[currentInjectionIndex], 
             bytePositions[currentInjectionIndex], 
-            lengths[currentInjectionIndex]
+            byteMasks[currentInjectionIndex]
         );
 
     if(dumpCacheContent){

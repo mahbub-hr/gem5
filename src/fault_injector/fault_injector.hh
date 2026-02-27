@@ -20,7 +20,7 @@ class FaultInjector : public SimObject
     std::vector<uint32_t> sets;
     std::vector<uint32_t> ways;
     std::vector<uint32_t> bytePositions;
-    std::vector<uint32_t> lengths;
+    std::vector<uint32_t> byteMasks;
     Cache *targetCache;
     bool dumpCacheContent = false;
 

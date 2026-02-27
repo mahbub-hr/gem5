@@ -1554,7 +1554,7 @@ void Cache::dumpCacheContent()
 
 }
 
-bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint32_t numOfBytes){
+bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask){
     BaseSetAssoc *set_tags = dynamic_cast<BaseSetAssoc*>(tags);
     
     if (!set_tags) {
@@ -1573,11 +1573,8 @@ bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint32_t numOfByte
         return true; // Todo : return false or true? If block is not valid, it means it doesn't have valid data, so we can consider it as already "corrupted" for the purpose of MBU. Returning true to indicate MBU is effectively done, even though we didn't flip any bits.
     }
 
-    for(int i =0; i< numOfBytes; i++){
-        blk->data[bytePos + i] = 0xaa; // Todo: take random value instead of 0x00;
-    }
-
-    blk->data[bytePos] = 0; 
+    blk->data[bytePos] = blk->data[bytePos] ^ byteMask;
+    
     return true;
 }
 } // namespace gem5
