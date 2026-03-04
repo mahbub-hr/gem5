@@ -8,8 +8,7 @@ import argparse
 import os
 import time
 
-# TODO: not strictly sporadic.
-def sporadic_byte_mask(num_bits_to_flip):
+def random_byte_mask(num_bits_to_flip):
     """Generates a byte mask with a specific number of bits set to 1"""
     if num_bits_to_flip > 8:
         raise ValueError("num_bits_to_flip cannot exceed 8 for a single byte.")
@@ -20,6 +19,10 @@ def sporadic_byte_mask(num_bits_to_flip):
         mask |= (1 << pos)
     
     return mask
+
+def random_masks(num_of_bits):
+    masks = []
+
 
 # In a byte (8 bits), there are 7 possible pairs of consecutive bits:
 # (0,1), (1,2), (2,3), (3,4), (4,5), (5,6), and (6,7).
@@ -49,8 +52,8 @@ def generate_random_injection_points(max_tick, num_injections_per_run=1, num_bit
         s = random.randint(0, NUM_SETS - 1)
         w = random.randint(0, L1DCACHE_ASSOC - 1)
         b_pos = random.randint(0, NUM_BYTES_PER_WAY - 1)
-        num_bits_to_flip = 8#random.randint(1, 8)
-        mask  = sporadic_byte_mask(num_bits_to_flip)
+        num_bits_to_flip = random.randint(1, 8)
+        mask  = random_byte_mask(num_bits_to_flip)
 
         # D. Append to lists
         target_sets.append(s)
@@ -172,9 +175,10 @@ system.system_port = system.membus.cpu_side_ports
 # -------------------------------------------------------------------------
 # 5. Process Setup
 # -------------------------------------------------------------------------
-system.workload = SEWorkload.init_compatible(cmd)
+cmds = cmd.split(" ")
+system.workload = SEWorkload.init_compatible(cmds[0])
 process = Process()
-process.cmd = cmd
+process.cmd = cmds
 process.output = os.path.join(PROGRAM_OUTPUT)
 process.errout = os.path.join(PROGRAM_OUTPUT)
 system.cpu.workload = process

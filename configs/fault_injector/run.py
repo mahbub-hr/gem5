@@ -38,7 +38,7 @@ configs = {
             "seed" : 42,
             "dump_cache_content": False,
             # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_dup.bin"],
+            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_dup.bin"]
         },
         "duplicated":{
             "name": "duplicated",
@@ -48,7 +48,7 @@ configs = {
             "seed" : 42,
             "dump_cache_content": False,
             # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_dup.bin"],
+            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_dup.bin"]
         },
         "partitioned_duplicated":{
             "name": "partitioned_duplicated",
@@ -58,7 +58,81 @@ configs = {
             "seed" : 42,
             "dump_cache_content": False,
             # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_partitioned.bin"],
+            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_partitioned.bin"]
+        }
+    },
+    "qsort" :{
+        "golden_run":{
+            "name": "golden_run",
+            "num_of_injections": 300,
+            "num_injections_per_run": 1,
+            "target_component": "dcache",
+            "seed" : 42,
+            "dump_cache_content": False,
+            # run from /work/host/gem5/configs/fault_injector
+            "cmd": [
+                "/work/host/gem5/configs/fault_injector/tests/qsort/qsort_large_dup.bin",
+                "/work/host/gem5/configs/fault_injector/tests/qsort/input_large_small.dat"
+            ]
+        },
+        "duplicated":{
+            "name": "duplicated",
+            "num_of_injections": 300,
+            "num_injections_per_run": 1,
+            "target_component": "dcache",
+            "seed" : 42,
+            "dump_cache_content": False,
+            # run from /work/host/gem5/configs/fault_injector
+            "cmd": ["/work/host/gem5/configs/fault_injector/tests/qsort/qsort_large_dup.bin",
+                    "/work/host/gem5/configs/fault_injector/tests/qsort/input_large_small.dat"]
+        },
+        "partitioned_duplicated":{
+            "name": "partitioned_duplicated",
+            "num_of_injections": 300,
+            "num_injections_per_run": 1,
+            "target_component": "dcache",
+            "seed" : 42,
+            "dump_cache_content": False,
+            # run from /work/host/gem5/configs/fault_injector
+            "cmd": ["/work/host/gem5/configs/fault_injector/tests/qsort/qsort_large_partitioned.bin"
+                    ,"/work/host/gem5/configs/fault_injector/tests/qsort/input_large_small.dat"]
+        }
+    },
+    "qsort_small" :{
+        "golden_run":{
+            "name": "golden_run",
+            "num_of_injections": 300,
+            "num_injections_per_run": 1,
+            "target_component": "dcache",
+            "seed" : 42,
+            "dump_cache_content": False,
+            # run from /work/host/gem5/configs/fault_injector
+            "cmd": [
+                "/work/host/gem5/configs/fault_injector/tests/qsort/qsort_small_dup.bin",
+                "/work/host/gem5/configs/fault_injector/tests/qsort/input_small.dat"
+            ]
+        },
+        "duplicated":{
+            "name": "duplicated",
+            "num_of_injections": 300,
+            "num_injections_per_run": 1,
+            "target_component": "dcache",
+            "seed" : 42,
+            "dump_cache_content": False,
+            # run from /work/host/gem5/configs/fault_injector
+            "cmd": ["/work/host/gem5/configs/fault_injector/tests/qsort/qsort_small_dup.bin",
+                    "/work/host/gem5/configs/fault_injector/tests/qsort/input_small.dat"]
+        },
+        "partitioned_duplicated":{
+            "name": "partitioned_duplicated",
+            "num_of_injections": 300,
+            "num_injections_per_run": 1,
+            "target_component": "dcache",
+            "seed" : 42,
+            "dump_cache_content": False,
+            # run from /work/host/gem5/configs/fault_injector
+            "cmd": ["/work/host/gem5/configs/fault_injector/tests/qsort/qsort_small_partitioned.bin"
+                    ,"/work/host/gem5/configs/fault_injector/tests/qsort/input_small.dat"]
         }
     }
 }
@@ -85,17 +159,17 @@ def read_golden_output(golden_output_file):
     with open(golden_output_file, "r") as f:
         return f.read()
 
-def get_max_ticks_guranteed():
+def get_max_ticks_guranteed(benchmark: str):
     max_tick = get_max_ticks(stats_file=os.path.join(M5OUT_DIR, "golden_run", "stats.txt"))
     
     if max_tick == 0:
-        gold_run(configs["matrix_mul"]["golden_run"]["cmd"], out_dir=os.path.join(M5OUT_DIR, "golden_run"))
+        gold_run(configs[benchmark]["golden_run"]["cmd"], out_dir=os.path.join(M5OUT_DIR, "golden_run"))
         max_tick = get_max_ticks(stats_file=os.path.join(M5OUT_DIR, "golden_run", "stats.txt"))
     
     return max_tick
 
-def  get_stats_from_golden_run():
-    max_tick = get_max_ticks_guranteed()
+def  get_stats_from_golden_run(benchmark: str):
+    max_tick = get_max_ticks_guranteed(benchmark)
     golden_output = read_golden_output(os.path.join(M5OUT_DIR, "golden_run", PROGRAM_OUTPUT_FILE))
 
     return max_tick, golden_output
@@ -106,8 +180,8 @@ def run_gem5(args):
     print(f"Executing: {' '.join(cmd)}")
     subprocess.run(
         cmd, 
-        check=True,
-        stdout= subprocess.DEVNULL,  # Suppress gem5's stdout
+        check=True
+        ,stdout= subprocess.DEVNULL,  # Suppress gem5's stdout
         stderr= subprocess.DEVNULL   # Suppress gem5's stderr
     )
 
@@ -156,8 +230,7 @@ def classify_output(golden_output, program_output_file):
 def single_injection_run_with_random_values(cmd, out_dir, program_output_filepath, max_tick, num_injections_per_run=1, num_bits_to_flip=1):
     global GOLDEN_OUTPUT, DELETE_PER_RUN_OUTPUT
 
-    try:
-        run_gem5([
+    args = [
             f"--outdir={out_dir}",
             CONFIG_SCRIPT,
             "--generate-random-injection-points",
@@ -166,10 +239,12 @@ def single_injection_run_with_random_values(cmd, out_dir, program_output_filepat
             f"--num-of-bits-to-flip={num_bits_to_flip}",
             f"--cmd={cmd}",
             f"--output-file={PROGRAM_OUTPUT_FILE}"
-        ])
+        ]
+    try:
+        run_gem5(args)
     except subprocess.CalledProcessError as e:
-        print(f"Error during injection run: {e}")
-        result_type = "CRASH"
+        print(f"\nError during injection run:\n {e}")
+        result_type = "CRASH" #TODO: verify the crash
     
     result_type = classify_output(GOLDEN_OUTPUT, program_output_filepath)
 
@@ -210,19 +285,27 @@ def single_injection_run(config_name, injection_id, inject_ticks, target_sets, t
         
     return classify_output(program_output_file)
 
-def gold_run(cmd, out_dir="m5out/golden_run"):
+
+def gold_run(cmd, out_dir):
     global GOLDEN_OUTPUT
     program_output_file =  "program_output.out"
 
     if not os.path.exists(os.path.join(out_dir, "stats.txt")):
         command = " ".join(cmd)
-        run_gem5([
+        args = [
             f"--outdir={out_dir}",
             CONFIG_SCRIPT, 
             "--profile",
             f"--cmd={command}", 
             f"--output-file={program_output_file}"
-        ])
+        ]
+        try:
+            run_gem5(args)
+        except subprocess.CalledProcessError as e:
+            subprocess.run(["rm", "-rf", out_dir])
+            print(f"Error during golden run:\n {e}")
+            print(f"cmd:{GEM5_BIN} {' '.join(args)}")
+            exit(1)
 
     max_tick = get_max_ticks(stats_file=os.path.join(out_dir, "stats.txt"))
 
@@ -235,31 +318,48 @@ def gold_run(cmd, out_dir="m5out/golden_run"):
     
     return max_tick
 
-def parallel_injections(config_name: str, num_of_injections):
-    pool_size = multiprocessing.cpu_count() - 4
+def parallel_injections(benchmark: str, config_name: str, num_of_injections: int):
+    pool_size = max(1, multiprocessing.cpu_count() - 4)
     print(f"\n=== Using multiprocessing pool of size: {pool_size}")
-    job_args = [(i, MAX_TICK) for i in range(num_of_injections)]
-    total_stats = Counter()
 
-    print(f"Running experiment {NUM_TRIALS} times...")
+    cmd = " ".join(configs[benchmark][config_name]["cmd"])
+    job_args = []
+    
+    print(f"Preparing configuration for {num_of_injections} injections...")
+    
+    for injection_id in range(num_of_injections):
+        out_dir = os.path.join(M5OUT_DIR, benchmark, config_name, f"run_{injection_id}")
+        program_output_filepath = os.path.join(out_dir, PROGRAM_OUTPUT_FILE)
+        
+        job_args.append(( 
+            cmd,
+            out_dir,
+            program_output_filepath,
+            MAX_TICK,
+            1, # num_injections_per_run
+            1  # num_bits_to_flip
+        ))
 
+    # 4. Execute Parallel Runs
+    print(f"Starting execution...")
+    
     with multiprocessing.Pool(pool_size) as pool:
-        for trial in range(1, NUM_TRIALS + 1):
-            print(f"  > Starting Trial {trial}/{NUM_TRIALS}...")
-            results = pool.starmap(single_injection_run, job_args)
-            stats = Counter(results)
-            total_stats += stats
+        # starmap calls: func(cmd, out_dir, prog_out, ...)
+        results = pool.starmap(single_injection_run_with_random_values, job_args)
 
+    # 5. Aggregate Results
+    total_stats = Counter(results)
+    
     return total_stats
 
-def sequential_injections(config_name: str, num_of_injections):
-    cmd = " ".join(configs["matrix_mul"][config_name]["cmd"])
+def sequential_injections(benchmark: str, config_name: str, num_of_injections: int):
+    cmd = " ".join(configs[benchmark][config_name]["cmd"])
     total_stats = Counter()
     print(f"Running experiment {num_of_injections} times...")
 
     for injection_id in range(num_of_injections):
         print(f"  > Starting Injection {injection_id+1}/{num_of_injections}...")
-        out_dir = os.path.join(M5OUT_DIR, config_name,f"run_{injection_id}")
+        out_dir = os.path.join(M5OUT_DIR, benchmark, config_name, f"run_{injection_id}")
         program_output_filepath = os.path.join(out_dir, PROGRAM_OUTPUT_FILE)
 
         result = single_injection_run_with_random_values(
@@ -277,34 +377,39 @@ def sequential_injections(config_name: str, num_of_injections):
 
 def main():
     parser = argparse.ArgumentParser(description="Fault Injection Campaign Runner")
-    
-    parser.add_argument("--config", type=str, choices=[cfg for cfg in configs["matrix_mul"]], default="all", help="Which config to run")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument("--profile", action="store_true", help="Run without injection to get max ticks")
-    parser.add_argument("--num-of-injections", type=int, default=None, help="Number of injections to perform")
-    parser.add_argument("--parallel-injections", action="store_true", default=False,
+    fixed_point_injection_group = parser.add_argument_group("Fixed Injection Point Arguments")
+    random_injection_group = parser.add_argument_group("Random Injection Point Arguments")
+    profile_run_group = parser.add_argument_group("Profiling the program (Gold Run)")
+
+    profile_run_group.add_argument("--profile", action="store_true", help="Run without injection to get max ticks")
+
+    random_injection_group.add_argument("--config", type=str, choices=[cfg for cfg in configs["matrix_mul"]], default="all", help="Which config to run")
+    random_injection_group.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    random_injection_group.add_argument("--num-of-injections", type=int, default=None, help="Number of injections to perform")
+    random_injection_group.add_argument("--parallel-injections", action="store_true", default=False,
                         help="Run injections in parallel")
-    parser.add_argument("--keep-per-run-output", action="store_true", default=False, help="Delete program output files after classification")
     
     # fixed injection point args (for single injection runs)
-    parser.add_argument("--sets", nargs="+", type=int, default=None, help="Cache set to target for injection")
-    parser.add_argument("--ways", nargs="+", type=int, default=None, help="Cache way to target for injection")
-    parser.add_argument("--byte-positions", nargs="+", type=int, default=None, help="Byte positions in a block to target for injection")
-    parser.add_argument("--byte-masks", nargs="+", type=int, default=None, help="Byte mask to flip bits at target positions")
+    fixed_point_injection_group.add_argument("--sets", nargs="+", type=int, default=None, help="Cache set to target for injection")
+    fixed_point_injection_group.add_argument("--ways", nargs="+", type=int, default=None, help="Cache way to target for injection")
+    fixed_point_injection_group.add_argument("--byte-positions", nargs="+", type=int, default=None, help="Byte positions in a block to target for injection")
+    fixed_point_injection_group.add_argument("--byte-masks", nargs="+", type=int, default=None, help="Byte mask to flip bits at target positions")
     # parser.add_argument("-benchmark")
 
+    parser.add_argument("--keep-per-run-output", action="store_true", default=False, help="Delete program output files after classification")
+    
     global GOLDEN_OUTPUT, MAX_TICK, DELETE_PER_RUN_OUTPUT
     args = parser.parse_args()
     DELETE_PER_RUN_OUTPUT = not args.keep_per_run_output
     total_stats = Counter()
-    BENCHMARK = "matrix_mul"
+    BENCHMARK = "qsort_small"
     total_stats = {}
     single_benchmrak_configs = configs[BENCHMARK]
 
     # --- PHASE 2: INJECTION CAMPAIGN ---
     if args.profile:
         print(f"\n=== PHASE 1: PROFILING (Gold Run) ===")
-        max_ticks = gold_run(configs["matrix_mul"]["golden_run"]["cmd"], out_dir=os.path.join(M5OUT_DIR, "golden_run"))
+        max_ticks = gold_run(configs[BENCHMARK]["golden_run"]["cmd"], out_dir=os.path.join(M5OUT_DIR, BENCHMARK, "golden_run"))
         print(f"Max Ticks for Injection Point Generation: {max_ticks}")
         exit(0)
 
@@ -339,21 +444,30 @@ def main():
             exit(1)
 
         num_of_injections = args.num_of_injections
+        MAX_TICK, GOLDEN_OUTPUT = get_stats_from_golden_run(BENCHMARK)
+
+        if MAX_TICK is None or MAX_TICK == 0:
+            print("Error: Could not determine max ticks for injection point generation.")
+            exit(1)
 
         if args.parallel_injections:
             print("\n=== PHASE 2: INJECTION CAMPAIGN (Parallel) ===")
-            total_stats = parallel_injections(max_ticks, num_of_injections)
+            if args.config == "duplicated" or args.config == "partitioned_duplicated":
+                total_stats = parallel_injections(BENCHMARK, args.config, num_of_injections)
         
+            else:
+                for cfg in single_benchmrak_configs:
+                    if cfg == "golden_run":
+                        continue
+
+                    print(f"\n--- Running Config: {cfg} ---")
+                    total_stats[cfg] = parallel_injections(BENCHMARK, cfg, num_of_injections)
+
         else:
             print("\n=== PHASE 2: INJECTION CAMPAIGN (Sequential) ===")
-            MAX_TICK, GOLDEN_OUTPUT = get_stats_from_golden_run()
-
-            if MAX_TICK is None or MAX_TICK == 0:
-                print("Error: Could not determine max ticks for injection point generation.")
-                exit(1)
-
+           
             if args.config == "duplicated" or args.config == "partitioned_duplicated":
-                total_stats[args.config] = sequential_injections(args.config, num_of_injections)
+                total_stats[args.config] = sequential_injections(BENCHMARK, args.config, num_of_injections)
 
             else:
                 for cfg in single_benchmrak_configs:
@@ -361,7 +475,7 @@ def main():
                         continue
 
                     print(f"\n--- Running Config: {cfg} ---")
-                    total_stats[cfg] = sequential_injections(cfg, num_of_injections)
+                    total_stats[cfg] = sequential_injections(BENCHMARK, cfg, num_of_injections)
 
     # --- PHASE 3: RESULTS SUMMARY ---
     for config_name in total_stats:
