@@ -4,7 +4,8 @@ import os
 import re
 import multiprocessing
 from collections import Counter
-import argparse
+import argparse, json
+from datetime import datetime
 
 random.seed()  # For reproducibility
 
@@ -12,6 +13,7 @@ random.seed()  # For reproducibility
 # CONFIGURATION
 GEM5_BIN = "/work/host/gem5/build/X86/gem5.opt"
 CONFIG_SCRIPT = "/work/host/gem5/configs/fault_injector/tests/random_mbu/fi_cfg.py"
+BENCHMARK_CONFIG = "configs.json"
 M5OUT_DIR = "m5out"
 STATS_FILE = "m5out/golden_run/stats.txt"
 GOLDEN_OUTPUT = None
@@ -28,115 +30,7 @@ L1DCACHE_BLOCK_SIZE = 64  # 64B
 NUM_SETS = L1DCACHE_SIZE // (L1DCACHE_ASSOC * L1DCACHE_BLOCK_SIZE)  # 64 sets
 BITS_PER_BYTE = 8
 
-configs = {
-    "matrix_mul" :{
-        "golden_run":{
-            "name": "golden_run",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_dup.bin"]
-        },
-        "duplicated":{
-            "name": "duplicated",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_dup.bin"]
-        },
-        "partitioned_duplicated":{
-            "name": "partitioned_duplicated",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/matrix_mul/matrix_mul_partitioned.bin"]
-        }
-    },
-    "qsort" :{
-        "golden_run":{
-            "name": "golden_run",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": [
-                "/work/host/gem5/configs/fault_injector/tests/qsort/qsort_large_dup.bin",
-                "/work/host/gem5/configs/fault_injector/tests/qsort/input_large_small.dat"
-            ]
-        },
-        "duplicated":{
-            "name": "duplicated",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/qsort/qsort_large_dup.bin",
-                    "/work/host/gem5/configs/fault_injector/tests/qsort/input_large_small.dat"]
-        },
-        "partitioned_duplicated":{
-            "name": "partitioned_duplicated",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/qsort/qsort_large_partitioned.bin"
-                    ,"/work/host/gem5/configs/fault_injector/tests/qsort/input_large_small.dat"]
-        }
-    },
-    "qsort_small" :{
-        "golden_run":{
-            "name": "golden_run",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": [
-                "/work/host/gem5/configs/fault_injector/tests/qsort/qsort_small_dup.bin",
-                "/work/host/gem5/configs/fault_injector/tests/qsort/input_small.dat"
-            ]
-        },
-        "duplicated":{
-            "name": "duplicated",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/qsort/qsort_small_dup.bin",
-                    "/work/host/gem5/configs/fault_injector/tests/qsort/input_small.dat"]
-        },
-        "partitioned_duplicated":{
-            "name": "partitioned_duplicated",
-            "num_of_injections": 300,
-            "num_injections_per_run": 1,
-            "target_component": "dcache",
-            "seed" : 42,
-            "dump_cache_content": False,
-            # run from /work/host/gem5/configs/fault_injector
-            "cmd": ["/work/host/gem5/configs/fault_injector/tests/qsort/qsort_small_partitioned.bin"
-                    ,"/work/host/gem5/configs/fault_injector/tests/qsort/input_small.dat"]
-        }
-    }
-}
-
+configs = json.load(open(BENCHMARK_CONFIG, "r"))
 
 def get_max_ticks(stats_file=STATS_FILE):
     """Reads stats.txt to find simTicks"""
@@ -158,19 +52,23 @@ def read_golden_output(golden_output_file):
 
     with open(golden_output_file, "r") as f:
         return f.read()
+    
+    # TODO: verify the golden output is valid (not empty, not an error message, etc.)
 
-def get_max_ticks_guranteed(benchmark: str):
-    max_tick = get_max_ticks(stats_file=os.path.join(M5OUT_DIR, "golden_run", "stats.txt"))
+def get_max_ticks_guranteed(benchmark: str, out_dir: str):
+    max_tick = get_max_ticks(stats_file=os.path.join(out_dir, "stats.txt"))
     
     if max_tick == 0:
-        gold_run(configs[benchmark]["golden_run"]["cmd"], out_dir=os.path.join(M5OUT_DIR, "golden_run"))
-        max_tick = get_max_ticks(stats_file=os.path.join(M5OUT_DIR, "golden_run", "stats.txt"))
+        gold_run(configs[benchmark]["golden_run"]["cmd"], out_dir=out_dir)
+        max_tick = get_max_ticks(stats_file=os.path.join(out_dir, "stats.txt"))
     
     return max_tick
 
 def  get_stats_from_golden_run(benchmark: str):
-    max_tick = get_max_ticks_guranteed(benchmark)
-    golden_output = read_golden_output(os.path.join(M5OUT_DIR, "golden_run", PROGRAM_OUTPUT_FILE))
+    out_dir = os.path.join(M5OUT_DIR, benchmark, "golden_run")
+    program_output_filepath = os.path.join(out_dir, PROGRAM_OUTPUT_FILE)
+    max_tick = get_max_ticks_guranteed(benchmark, out_dir)
+    golden_output = read_golden_output(program_output_filepath)
 
     return max_tick, golden_output
 
@@ -375,36 +273,138 @@ def sequential_injections(benchmark: str, config_name: str, num_of_injections: i
 
     return total_stats
 
+def save_data_for_plotting(statistics:dict, filepath: str):
+    with open(filepath, "w") as f:
+        json.dump(statistics, f, indent=4)
+
+def run_all_benchmarks(num_of_injections_per_benchmark):
+    global MAX_TICK, GOLDEN_OUTPUT, M5OUT_DIR
+    ALL_STATISTICS = {}
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    M5OUT_DIR = os.path.join(M5OUT_DIR, f"{timestamp}")
+    statistics_filepath = os.path.join(M5OUT_DIR, "fi_statistics.json")
+    os.makedirs(M5OUT_DIR, exist_ok=True)
+
+    # clean_prev_data() # TODO
+    for benchmark in configs:
+        GOLDEN_OUTPUT = None
+        MAX_TICK = None
+        ALL_STATISTICS[benchmark] = {}
+
+        print(f"\n\n==============================\n"
+              f"=== Running Benchmark: {benchmark} ===\n"
+              f"==============================\n")
+        out_dir = os.path.join(M5OUT_DIR, benchmark, "golden_run")
+        MAX_TICK, GOLDEN_OUTPUT = get_stats_from_golden_run(benchmark)
+
+        for cfg in configs[benchmark]:
+            if cfg == "golden_run":
+                continue
+
+            print(f"\n--- Running Config: {cfg} ---")
+            paralle_injection_stats = parallel_injections(benchmark, cfg, num_of_injections_per_benchmark)
+            ALL_STATISTICS[benchmark][cfg] = paralle_injection_stats
+
+    save_data_for_plotting(ALL_STATISTICS, statistics_filepath)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Fault Injection Campaign Runner")
     fixed_point_injection_group = parser.add_argument_group("Fixed Injection Point Arguments")
     random_injection_group = parser.add_argument_group("Random Injection Point Arguments")
     profile_run_group = parser.add_argument_group("Profiling the program (Gold Run)")
 
-    profile_run_group.add_argument("--profile", action="store_true", help="Run without injection to get max ticks")
+    benchmark_choices = list(configs.keys()) + ["all"]
+    parser.add_argument(
+        "--benchmark", 
+        type=str, 
+        choices=benchmark_choices, 
+        default="qsort_small", 
+        help="Which benchmark to run or 'all' to run all the benchmarks")
+    profile_run_group.add_argument(
+        "--profile", 
+        action="store_true", 
+        help="Run without injection to get max ticks"
+    )
+    parser.add_argument(
+        "--keep-per-run-output", 
+        action="store_true", 
+        default=False, 
+        help="Delete program output files after classification"
+    )
 
-    random_injection_group.add_argument("--config", type=str, choices=[cfg for cfg in configs["matrix_mul"]], default="all", help="Which config to run")
-    random_injection_group.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
-    random_injection_group.add_argument("--num-of-injections", type=int, default=None, help="Number of injections to perform")
-    random_injection_group.add_argument("--parallel-injections", action="store_true", default=False,
-                        help="Run injections in parallel")
-    
+    # Random injection campaign args
+    config_choices = list(configs["matrix_mul"].keys()) + ["all"]
+    random_injection_group.add_argument(
+        "--config", 
+        type=str, 
+        choices=config_choices, 
+        default="all", 
+        help="Which config to run"
+    )
+    random_injection_group.add_argument(
+        "--seed", 
+        type=int, 
+        default=42, 
+        help="Random seed for reproducibility"
+    )
+    random_injection_group.add_argument(
+        "--num-of-injections", 
+        type=int, 
+        default=None, 
+        help="Number of injections to perform"
+    )
+    random_injection_group.add_argument(
+        "--parallel-injections", 
+        action="store_true", 
+        default=False,
+        help="Run injections in parallel"
+    )
+
     # fixed injection point args (for single injection runs)
-    fixed_point_injection_group.add_argument("--sets", nargs="+", type=int, default=None, help="Cache set to target for injection")
-    fixed_point_injection_group.add_argument("--ways", nargs="+", type=int, default=None, help="Cache way to target for injection")
-    fixed_point_injection_group.add_argument("--byte-positions", nargs="+", type=int, default=None, help="Byte positions in a block to target for injection")
-    fixed_point_injection_group.add_argument("--byte-masks", nargs="+", type=int, default=None, help="Byte mask to flip bits at target positions")
-    # parser.add_argument("-benchmark")
+    fixed_point_injection_group.add_argument(
+        "--sets", 
+        nargs="+", 
+        type=int, 
+        default=None, 
+        help="Cache set to target for injection"
+    )
+    fixed_point_injection_group.add_argument(
+        "--ways", 
+        nargs="+", 
+        type=int, 
+        default=None, 
+        help="Cache way to target for injection"
+    )
+    fixed_point_injection_group.add_argument(
+        "--byte-positions", 
+        nargs="+", 
+        type=int, 
+        default=None, 
+        help="Byte positions in a block to target for injection"
+    )
+    fixed_point_injection_group.add_argument(
+        "--byte-masks", 
+        nargs="+", 
+        type=int, 
+        default=None, 
+        help="Byte mask to flip bits at target positions"
+    )
 
-    parser.add_argument("--keep-per-run-output", action="store_true", default=False, help="Delete program output files after classification")
     
     global GOLDEN_OUTPUT, MAX_TICK, DELETE_PER_RUN_OUTPUT
     args = parser.parse_args()
     DELETE_PER_RUN_OUTPUT = not args.keep_per_run_output
     total_stats = Counter()
-    BENCHMARK = "qsort_small"
+    BENCHMARK = args.benchmark
     total_stats = {}
-    single_benchmrak_configs = configs[BENCHMARK]
+
+    if args.benchmark == "all":
+        if not args.num_of_injections:
+            print("Error: --num-of-injections is required when running all benchmarks")
+            exit(1)
+        run_all_benchmarks(args.num_of_injections)
+        return
 
     # --- PHASE 2: INJECTION CAMPAIGN ---
     if args.profile:
@@ -438,7 +438,6 @@ def main():
 
     # random injection point runs
     else:
-
         if args.num_of_injections is None:
             print("Error: --num-of-injections is required for random injection campaigns")
             exit(1)

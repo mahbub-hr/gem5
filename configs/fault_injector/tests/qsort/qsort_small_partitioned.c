@@ -47,11 +47,11 @@ main(int argc, char *argv[]) {
   qsort(array,count,sizeof(struct myStringStruct),compare);
   qsort(array_shadow,count,sizeof(struct myStringStruct),compare);
 
-  for(i=0;i<count;i++)
+  for(i=0;i<count;i++){
     if(strcmp(array[i].qstring, array_shadow[i].qstring) != 0){
       error();
     }
-
     printf("%s\n", array[i].qstring);
+  }
   return 0;
 }
