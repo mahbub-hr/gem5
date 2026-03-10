@@ -10,8 +10,8 @@ def generate_plot(input_file):
     benchmarks = list(data.keys())
     # Assuming all benchmarks have the same configs
     configs = list(data[benchmarks[0]].keys()) 
-    outcomes = ["SDC", "CRASH", "DETECTED", "MASKED"]
-    colors = ['#C00000', '#ED7D31', '#FFC000', '#A9D08E'] # Red, Orange, Yellow, Green
+    outcomes = ["SDC", "CRASH", "TIMEOUT", "DETECTED", "MASKED"]
+    colors = ['#C00000', '#ED7D31', '#FFC000', "#6ED370", '#6DCEDE'] # Red, Orange, Yellow, Green
 
     # 2. Process Data for Plotting
     # We need a 3D structure: [Outcome][Benchmark][Config]
@@ -56,8 +56,8 @@ def generate_plot(input_file):
     
     # Label Configs under the bars
     for i in x:
-        ax.text(i - width/2, -5, 'Dup', ha='center', fontsize=8, rotation=45)
-        ax.text(i + width/2, -5, 'Part', ha='center', fontsize=8, rotation=45)
+        ax.text(i - width/2, -5, 'Duplicated', ha='center', fontsize=8, rotation=45)
+        ax.text(i + width/2, -5, 'Partitioned', ha='center', fontsize=8, rotation=45)
 
     plt.tight_layout()
     plt.savefig(os.path.join(os.path.dirname(input_file), "fault_results.png"), dpi=300)

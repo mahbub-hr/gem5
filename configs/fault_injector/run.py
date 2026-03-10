@@ -1,7 +1,7 @@
 import subprocess
 import random
-import os
-import re
+import os, sys
+import logging
 import multiprocessing
 from collections import Counter
 import argparse, json
@@ -31,6 +31,37 @@ NUM_SETS = L1DCACHE_SIZE // (L1DCACHE_ASSOC * L1DCACHE_BLOCK_SIZE)  # 64 sets
 BITS_PER_BYTE = 8
 
 configs = json.load(open(BENCHMARK_CONFIG, "r"))
+logger = logging.getLogger(__name__)
+
+def setup_logger(log_dir):
+    """
+    Sets up a dual-logging system for Academic Research.
+    INFO level to console, DEBUG level to file.
+    """
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, "campaign_audit.log")
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    
+    # Remove existing handlers if any (to prevent double logging)
+    root_logger.handlers = []
+
+    # 1. File Handler (The "Lab Notebook" - Detailed)
+    file_formatter = logging.Formatter('%(asctime)s - [%(levelname)s] - %(name)s: %(message)s')
+    fh = logging.FileHandler(log_file)
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(file_formatter)
+    root_logger.addHandler(fh)
+
+    # 2. Console Handler (The "Dashboard" - Clean)
+    console_formatter = logging.Formatter('[%(levelname)s] %(message)s')
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    ch.setFormatter(console_formatter)
+    root_logger.addHandler(ch)
+
+    return log_file
 
 def get_max_ticks(stats_file=STATS_FILE):
     """Reads stats.txt to find simTicks"""
@@ -47,7 +78,7 @@ def get_max_ticks(stats_file=STATS_FILE):
 
 def read_golden_output(golden_output_file):
     if not os.path.exists(golden_output_file):
-        print(f"Error: Golden output file {golden_output_file} does not exist.")
+        logger.error(f"Error: Golden output file {golden_output_file} does not exist.")
         return None
 
     with open(golden_output_file, "r") as f:
@@ -72,15 +103,16 @@ def  get_stats_from_golden_run(benchmark: str):
 
     return max_tick, golden_output
 
-def run_gem5(args):
+def run_gem5(args, timeout=None):
     """Helper to run gem5 command"""
     cmd = [GEM5_BIN] + args
-    print(f"Executing: {' '.join(cmd)}")
+    # print(f"Executing: {' '.join(cmd)}")
     subprocess.run(
         cmd, 
         check=True
-        ,stdout= subprocess.DEVNULL,  # Suppress gem5's stdout
-        stderr= subprocess.DEVNULL   # Suppress gem5's stderr
+        ,stdout= subprocess.DEVNULL  # Suppress gem5's stdout
+        ,stderr= subprocess.DEVNULL   # Suppress gem5's stderr
+        ,timeout=timeout 
     )
 
     return
@@ -88,7 +120,7 @@ def run_gem5(args):
 
 def classify_output(golden_output, program_output_file):
     if golden_output is None:
-        print("Panic: Golden output is not available for classification.")
+        logger.error("Panic: Golden output is not available for classification.")
         exit(1)
 
     # --- Classification Logic ---
@@ -103,12 +135,6 @@ def classify_output(golden_output, program_output_file):
 
         if not fi_output:
             result_type = "CRASH"
-            print("\n--- Output Mismatch Detected ---")
-            print("Golden Output:")
-            print(golden_output)
-            print("\nFaulty Output:")
-            print(fi_output)
-            print("\n-------------------------------\n")
 
         elif "error" in fi_output.lower():
             result_type = "DETECTED"
@@ -119,15 +145,12 @@ def classify_output(golden_output, program_output_file):
         else:
             result_type = "MASKED"
 
-    if os.path.exists(program_output_file):
-        os.remove(program_output_file)
-
     return result_type
 
 # This is will the random inejction points generation logic inside the config script.
 def single_injection_run_with_random_values(cmd, out_dir, program_output_filepath, max_tick, num_injections_per_run=1, num_bits_to_flip=1):
     global GOLDEN_OUTPUT, DELETE_PER_RUN_OUTPUT
-
+    WALL_CLOCK_TIMEOUT = 300
     args = [
             f"--outdir={out_dir}",
             CONFIG_SCRIPT,
@@ -139,12 +162,21 @@ def single_injection_run_with_random_values(cmd, out_dir, program_output_filepat
             f"--output-file={PROGRAM_OUTPUT_FILE}"
         ]
     try:
-        run_gem5(args)
+        run_gem5(args, timeout=WALL_CLOCK_TIMEOUT)
+    
+    except subprocess.TimeoutExpired:
+        logger.debug(f"\n[Warning] Run {out_dir} timed out (Infinite Loop/Hang). Killing...")
+        result_type = "TIMEOUT"
+        if DELETE_PER_RUN_OUTPUT and os.path.exists(out_dir):
+            subprocess.run(["rm", "-rf", out_dir])
+        return result_type
+    
     except subprocess.CalledProcessError as e:
-        print(f"\nError during injection run:\n {e}")
+        logger.debug(f"\nError during injection run:\n {e}")
         result_type = "CRASH" #TODO: verify the crash
     
     result_type = classify_output(GOLDEN_OUTPUT, program_output_filepath)
+    logger.info(f"\nCompleted Run: {out_dir}\n")
 
     if DELETE_PER_RUN_OUTPUT and os.path.exists(out_dir):
         subprocess.run(["rm", "-rf", out_dir])
@@ -154,7 +186,7 @@ def single_injection_run_with_random_values(cmd, out_dir, program_output_filepat
 def single_injection_run(config_name, injection_id, inject_ticks, target_sets, target_ways, target_byte_positions, byte_masks):
     num_of_injections = len(inject_ticks)
 
-    print(f"\n--- Injection Run {injection_id}/{num_of_injections} ---")
+    logger.info(f"\n--- Injection Run {injection_id}/{num_of_injections} ---")
 
     program_output_file = f"/dev/shm/program_output_{injection_id}.out"
     unique_m5_dir = f"m5out/{config_name}/run_{injection_id}"
@@ -175,6 +207,7 @@ def single_injection_run(config_name, injection_id, inject_ticks, target_sets, t
             f"--output-file={program_output_file}"
         ])
         gem5_crashed = False
+    
     except subprocess.CalledProcessError as e:
         return "CRASH"
 
@@ -201,14 +234,14 @@ def gold_run(cmd, out_dir):
             run_gem5(args)
         except subprocess.CalledProcessError as e:
             subprocess.run(["rm", "-rf", out_dir])
-            print(f"Error during golden run:\n {e}")
-            print(f"cmd:{GEM5_BIN} {' '.join(args)}")
+            logger.error(f"Error during golden run:\n {e}")
+            logger.error(f"cmd:{GEM5_BIN} {' '.join(args)}")
             exit(1)
 
     max_tick = get_max_ticks(stats_file=os.path.join(out_dir, "stats.txt"))
 
     if max_tick == 0:
-        print("Error: Could not determine execution time.")
+        logger.error("Error: Could not determine execution time.")
         exit(1)
 
     with open(os.path.join(out_dir, program_output_file), "r") as fr:
@@ -216,14 +249,15 @@ def gold_run(cmd, out_dir):
     
     return max_tick
 
+
 def parallel_injections(benchmark: str, config_name: str, num_of_injections: int):
     pool_size = max(1, multiprocessing.cpu_count() - 4)
-    print(f"\n=== Using multiprocessing pool of size: {pool_size}")
+    logger.info(f"\n=== Using multiprocessing pool of size: {pool_size}")
 
     cmd = " ".join(configs[benchmark][config_name]["cmd"])
     job_args = []
     
-    print(f"Preparing configuration for {num_of_injections} injections...")
+    logger.info(f"Preparing configuration for {num_of_injections} injections...")
     
     for injection_id in range(num_of_injections):
         out_dir = os.path.join(M5OUT_DIR, benchmark, config_name, f"run_{injection_id}")
@@ -239,7 +273,7 @@ def parallel_injections(benchmark: str, config_name: str, num_of_injections: int
         ))
 
     # 4. Execute Parallel Runs
-    print(f"Starting execution...")
+    logger.info(f"Starting execution...")
     
     with multiprocessing.Pool(pool_size) as pool:
         # starmap calls: func(cmd, out_dir, prog_out, ...)
@@ -253,10 +287,10 @@ def parallel_injections(benchmark: str, config_name: str, num_of_injections: int
 def sequential_injections(benchmark: str, config_name: str, num_of_injections: int):
     cmd = " ".join(configs[benchmark][config_name]["cmd"])
     total_stats = Counter()
-    print(f"Running experiment {num_of_injections} times...")
+    logger.info(f"Running experiment {num_of_injections} times...")
 
     for injection_id in range(num_of_injections):
-        print(f"  > Starting Injection {injection_id+1}/{num_of_injections}...")
+        logger.info(f"  > Starting Injection {injection_id+1}/{num_of_injections}...")
         out_dir = os.path.join(M5OUT_DIR, benchmark, config_name, f"run_{injection_id}")
         program_output_filepath = os.path.join(out_dir, PROGRAM_OUTPUT_FILE)
 
@@ -277,35 +311,78 @@ def save_data_for_plotting(statistics:dict, filepath: str):
     with open(filepath, "w") as f:
         json.dump(statistics, f, indent=4)
 
-def run_all_benchmarks(num_of_injections_per_benchmark):
-    global MAX_TICK, GOLDEN_OUTPUT, M5OUT_DIR
+def run_benchmarks(benchmarks: list, per_benchmark_configs: list, num_of_injections_per_benchmark, run_parallel = False):
+    global MAX_TICK, GOLDEN_OUTPUT
     ALL_STATISTICS = {}
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    M5OUT_DIR = os.path.join(M5OUT_DIR, f"{timestamp}")
     statistics_filepath = os.path.join(M5OUT_DIR, "fi_statistics.json")
-    os.makedirs(M5OUT_DIR, exist_ok=True)
+    
+    if benchmarks[0] == "all":
+        benchmarks = configs.keys()
+        per_benchmark_configs = configs[benchmark].keys()
 
     # clean_prev_data() # TODO
-    for benchmark in configs:
+    for benchmark in benchmarks:
         GOLDEN_OUTPUT = None
         MAX_TICK = None
         ALL_STATISTICS[benchmark] = {}
 
-        print(f"\n\n==============================\n"
+        logger.info(f"\n\n==============================\n"
               f"=== Running Benchmark: {benchmark} ===\n"
               f"==============================\n")
-        out_dir = os.path.join(M5OUT_DIR, benchmark, "golden_run")
+        # out_dir = os.path.join(M5OUT_DIR, benchmark, "golden_run")
         MAX_TICK, GOLDEN_OUTPUT = get_stats_from_golden_run(benchmark)
 
-        for cfg in configs[benchmark]:
+        for cfg in per_benchmark_configs:
             if cfg == "golden_run":
                 continue
 
-            print(f"\n--- Running Config: {cfg} ---")
-            paralle_injection_stats = parallel_injections(benchmark, cfg, num_of_injections_per_benchmark)
-            ALL_STATISTICS[benchmark][cfg] = paralle_injection_stats
+            logger.info(f"\n--- Running Config: {cfg} ---")
+            if run_parallel:
+                injection_stats = parallel_injections(benchmark, cfg, num_of_injections_per_benchmark)
+            
+            else:
+                injection_stats = sequential_injections(benchmark, cfg, num_of_injections_per_benchmark)
+            
+            ALL_STATISTICS[benchmark][cfg] = injection_stats
+            save_data_for_plotting(ALL_STATISTICS, statistics_filepath)
+    
+    return ALL_STATISTICS
 
-    save_data_for_plotting(ALL_STATISTICS, statistics_filepath)
+def print_statistics_to_console(statistics: dict):
+    if statistics is None:
+        logger.info("Unable to print statistics from this run. Something went wrong.")
+        exit(-1)
+
+    first_benchmark = list(statistics.keys()[0])
+    first_config = list(statistics.values()[0])
+    num_of_injections_per_benchmark_per_config = sum(statistics[first_benchmark][first_config].values())
+
+    for benchmark in statistics:
+        for cfg in benchmark:
+            if cfg == "golden_run":
+                continue
+
+            logger.info(
+                f"\n=========================================\n"
+                f"===      Config: {cfg}        ===\n"
+                f"=========================================\n"
+                )
+            logger.info(f"**Total Injections per run: {num_of_injections_per_benchmark_per_config}")
+
+            for key in cfg.keys():
+                avg_count = statistics[benchmark][cfg][key]
+                logger.info(f"{key:<10}   {avg_count:>10.2f} ")
+
+    return
+
+def init_log(benchmarks: list):
+    global M5OUT_DIR
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    M5OUT_DIR = os.path.join(M5OUT_DIR, f"{timestamp}")
+    os.makedirs(M5OUT_DIR, exist_ok=True)
+    log_path = setup_logger(M5OUT_DIR)
+    logger.info(f"LOG PATH: {log_path}")
+
 
 
 def main():
@@ -316,11 +393,20 @@ def main():
 
     benchmark_choices = list(configs.keys()) + ["all"]
     parser.add_argument(
-        "--benchmark", 
-        type=str, 
+        "--benchmarks", 
+        nargs="+", 
         choices=benchmark_choices, 
         default="qsort_small", 
-        help="Which benchmark to run or 'all' to run all the benchmarks")
+        help="Which benchmarks to run or 'all' to run all the benchmarks"
+    )
+    config_choices = list(configs["matrix_mul"].keys()) + ["all"]
+    parser.add_argument(
+        "--configs", 
+        nargs="+", 
+        choices=config_choices, 
+        default="all", 
+        help="Which configs to run"
+    )
     profile_run_group.add_argument(
         "--profile", 
         action="store_true", 
@@ -334,14 +420,6 @@ def main():
     )
 
     # Random injection campaign args
-    config_choices = list(configs["matrix_mul"].keys()) + ["all"]
-    random_injection_group.add_argument(
-        "--config", 
-        type=str, 
-        choices=config_choices, 
-        default="all", 
-        help="Which config to run"
-    )
     random_injection_group.add_argument(
         "--seed", 
         type=int, 
@@ -355,10 +433,10 @@ def main():
         help="Number of injections to perform"
     )
     random_injection_group.add_argument(
-        "--parallel-injections", 
+        "--parallel", 
         action="store_true", 
         default=False,
-        help="Run injections in parallel"
+        help="Fires up multiple processes to inject in parallel"
     )
 
     # fixed injection point args (for single injection runs)
@@ -395,39 +473,34 @@ def main():
     global GOLDEN_OUTPUT, MAX_TICK, DELETE_PER_RUN_OUTPUT
     args = parser.parse_args()
     DELETE_PER_RUN_OUTPUT = not args.keep_per_run_output
-    total_stats = Counter()
-    BENCHMARK = args.benchmark
-    total_stats = {}
+    BENCHMARKS = args.benchmarks
+    ALL_STATISTICS = None
 
-    if args.benchmark == "all":
-        if not args.num_of_injections:
-            print("Error: --num-of-injections is required when running all benchmarks")
-            exit(1)
-        run_all_benchmarks(args.num_of_injections)
-        return
+    init_log(BENCHMARKS)
 
     # --- PHASE 2: INJECTION CAMPAIGN ---
     if args.profile:
-        print(f"\n=== PHASE 1: PROFILING (Gold Run) ===")
+        logger.info(f"\n=== PHASE 1: PROFILING (Gold Run) ===")
         max_ticks = gold_run(configs[BENCHMARK]["golden_run"]["cmd"], out_dir=os.path.join(M5OUT_DIR, BENCHMARK, "golden_run"))
-        print(f"Max Ticks for Injection Point Generation: {max_ticks}")
+        logger.info(f"Max Ticks for Injection Point Generation: {max_ticks}")
         exit(0)
 
     # fixed injection point runs (for verification)
     if args.sets is not None:
 
         if args.ways is None:
-            print("Error: --ways is required for single injection runs")
+            logger.error("Error: --ways is required for single injection runs")
             exit(1)
         if args.byte_positions is None:
-            print("Error: --byte-positions is required for single injection runs")
+            logger.error("Error: --byte-positions is required for single injection runs")
             exit(1)
         if args.byte_masks is None:
-            print("Error: --byte-masks is required for single injection runs")
+            logger.error("Error: --byte-masks is required for single injection runs")
             exit(1)
 
-        total_stats = single_injection_run(
-            config_name=args.config,
+        ALL_STATISTICS[BENCHMARKS[0]][args.configs[0]] = single_injection_run(
+            benchmark = args.benchmarks[0],
+            config_name=args.configs[0],
             injection_id=1,
             inject_ticks=args.inject_ticks,
             target_sets=args.sets,
@@ -439,59 +512,13 @@ def main():
     # random injection point runs
     else:
         if args.num_of_injections is None:
-            print("Error: --num-of-injections is required for random injection campaigns")
+            logger.error("Error: --num-of-injections is required for random injection campaigns")
             exit(1)
 
         num_of_injections = args.num_of_injections
-        MAX_TICK, GOLDEN_OUTPUT = get_stats_from_golden_run(BENCHMARK)
-
-        if MAX_TICK is None or MAX_TICK == 0:
-            print("Error: Could not determine max ticks for injection point generation.")
-            exit(1)
-
-        if args.parallel_injections:
-            print("\n=== PHASE 2: INJECTION CAMPAIGN (Parallel) ===")
-            if args.config == "duplicated" or args.config == "partitioned_duplicated":
-                total_stats = parallel_injections(BENCHMARK, args.config, num_of_injections)
-        
-            else:
-                for cfg in single_benchmrak_configs:
-                    if cfg == "golden_run":
-                        continue
-
-                    print(f"\n--- Running Config: {cfg} ---")
-                    total_stats[cfg] = parallel_injections(BENCHMARK, cfg, num_of_injections)
-
-        else:
-            print("\n=== PHASE 2: INJECTION CAMPAIGN (Sequential) ===")
-           
-            if args.config == "duplicated" or args.config == "partitioned_duplicated":
-                total_stats[args.config] = sequential_injections(BENCHMARK, args.config, num_of_injections)
-
-            else:
-                for cfg in single_benchmrak_configs:
-                    if cfg == "golden_run":
-                        continue
-
-                    print(f"\n--- Running Config: {cfg} ---")
-                    total_stats[cfg] = sequential_injections(BENCHMARK, cfg, num_of_injections)
-
-    # --- PHASE 3: RESULTS SUMMARY ---
-    for config_name in total_stats:
-        if config_name == "golden_run":
-            continue
-
-        print(f"\n=========================================\n"
-              f"===      Config: {config_name}        ===\n"
-              f"=========================================\n"
-            )
-        print(f"**Total Injections per run: {args.num_of_injections}")
-
-        keys_of_interest = ['MASKED', 'SDC', 'DETECTED', 'CRASH']
-
-        for key in keys_of_interest:
-            avg_count = total_stats[config_name][key] / NUM_TRIALS
-            print(f"{key:<10},   {avg_count:>10.2f} ")
-
+        per_benchmark_configs = args.configs
+        run_benchmarks(BENCHMARKS, per_benchmark_configs, num_of_injections)
+        print_statistics_to_console(ALL_STATISTICS)
+    
 if __name__ == "__main__":
     main()

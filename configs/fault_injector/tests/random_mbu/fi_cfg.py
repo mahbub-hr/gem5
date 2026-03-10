@@ -53,7 +53,7 @@ def generate_random_injection_points(max_tick, num_injections_per_run=1, num_bit
         w = random.randint(0, L1DCACHE_ASSOC - 1)
         b_pos = random.randint(0, NUM_BYTES_PER_WAY - 1)
         num_bits_to_flip = random.randint(1, 8)
-        mask  = random_byte_mask(num_bits_to_flip)
+        mask  = consecuctive_byte_mask(num_bits_to_flip)#random_byte_mask(num_bits_to_flip)
 
         # D. Append to lists
         target_sets.append(s)
