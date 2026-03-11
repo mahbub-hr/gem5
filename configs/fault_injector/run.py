@@ -13,7 +13,7 @@ random.seed()  # For reproducibility
 # CONFIGURATION
 GEM5_BIN = "/work/host/gem5/build/X86/gem5.opt"
 CONFIG_SCRIPT = "/work/host/gem5/configs/fault_injector/tests/random_mbu/fi_cfg.py"
-BENCHMARK_CONFIG = "configs.json"
+BENCHMARK_CONFIG = "benchmark_configs.json"
 M5OUT_DIR = "m5out"
 STATS_FILE = "m5out/golden_run/stats.txt"
 GOLDEN_OUTPUT = None
@@ -315,10 +315,14 @@ def run_benchmarks(benchmarks: list, per_benchmark_configs: list, num_of_injecti
     global MAX_TICK, GOLDEN_OUTPUT
     ALL_STATISTICS = {}
     statistics_filepath = os.path.join(M5OUT_DIR, "fi_statistics.json")
-    
+
     if benchmarks[0] == "all":
         benchmarks = configs.keys()
-        per_benchmark_configs = configs[benchmark].keys()
+    
+    if per_benchmark_configs[0] == "all":
+        per_benchmark_configs = configs[benchmarks[0]].keys()
+
+    print(f"{benchmarks} {per_benchmark_configs}")
 
     # clean_prev_data() # TODO
     for benchmark in benchmarks:
@@ -330,13 +334,16 @@ def run_benchmarks(benchmarks: list, per_benchmark_configs: list, num_of_injecti
               f"=== Running Benchmark: {benchmark} ===\n"
               f"==============================\n")
         # out_dir = os.path.join(M5OUT_DIR, benchmark, "golden_run")
+        # TODO: Every time we run, we are creating new directory.
+        # Therefore, next time it will not find the previous data
+        # which makes it to run the golden run again each time.
         MAX_TICK, GOLDEN_OUTPUT = get_stats_from_golden_run(benchmark)
 
         for cfg in per_benchmark_configs:
             if cfg == "golden_run":
                 continue
 
-            logger.info(f"\n--- Running Config: {cfg} ---")
+            logger.info(f"--- Running Config: {cfg} ---")
             if run_parallel:
                 injection_stats = parallel_injections(benchmark, cfg, num_of_injections_per_benchmark)
             
@@ -353,12 +360,15 @@ def print_statistics_to_console(statistics: dict):
         logger.info("Unable to print statistics from this run. Something went wrong.")
         exit(-1)
 
-    first_benchmark = list(statistics.keys()[0])
-    first_config = list(statistics.values()[0])
-    num_of_injections_per_benchmark_per_config = sum(statistics[first_benchmark][first_config].values())
+    print(list(statistics.keys()), " ", list(statistics.values()))
+
+    first_benchmark = list(statistics.keys())[0]
+    first_config = list(list(statistics.values())[0].keys())[0]
+    num_of_injections_per_benchmark_per_config = sum(list(statistics[first_benchmark][first_config].values()))
 
     for benchmark in statistics:
-        for cfg in benchmark:
+        single_benchmark = statistics[benchmark]
+        for cfg in single_benchmark:
             if cfg == "golden_run":
                 continue
 
@@ -367,10 +377,12 @@ def print_statistics_to_console(statistics: dict):
                 f"===      Config: {cfg}        ===\n"
                 f"=========================================\n"
                 )
-            logger.info(f"**Total Injections per run: {num_of_injections_per_benchmark_per_config}")
+            logger.info(f"**Total Injections per benchmark per config: {num_of_injections_per_benchmark_per_config}")
 
-            for key in cfg.keys():
-                avg_count = statistics[benchmark][cfg][key]
+            single_config = single_benchmark[cfg]
+
+            for key in single_config:
+                avg_count = single_config[key]
                 logger.info(f"{key:<10}   {avg_count:>10.2f} ")
 
     return
@@ -396,7 +408,7 @@ def main():
         "--benchmarks", 
         nargs="+", 
         choices=benchmark_choices, 
-        default="qsort_small", 
+        default=["qsort_small"], 
         help="Which benchmarks to run or 'all' to run all the benchmarks"
     )
     config_choices = list(configs["matrix_mul"].keys()) + ["all"]
@@ -404,7 +416,7 @@ def main():
         "--configs", 
         nargs="+", 
         choices=config_choices, 
-        default="all", 
+        default=["all"], 
         help="Which configs to run"
     )
     profile_run_group.add_argument(
@@ -517,7 +529,8 @@ def main():
 
         num_of_injections = args.num_of_injections
         per_benchmark_configs = args.configs
-        run_benchmarks(BENCHMARKS, per_benchmark_configs, num_of_injections)
+        run_parallel = args.parallel
+        ALL_STATISTICS = run_benchmarks(BENCHMARKS, per_benchmark_configs, num_of_injections, run_parallel)
         print_statistics_to_console(ALL_STATISTICS)
     
 if __name__ == "__main__":
