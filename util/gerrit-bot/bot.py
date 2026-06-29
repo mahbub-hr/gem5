@@ -32,8 +32,7 @@ import time
 
 from gerrit import GerritResponseParser as Parser
 from gerrit import GerritRestAPI
-
-from util import (
+from my_project.src.fi.fault_injector.util import (
     add_maintainers_to_change,
     convert_time_in_seconds,
 )
