@@ -1,4 +1,7 @@
 Import('*')
-SimObject('FaultInjector.py', sim_objects=['FaultInjector'])
+SimObject('FaultInjector.py', sim_objects=[
+    'BaseFaultInjector', 'CacheFaultInjector', 'RegisterFaultInjector'])
 Source('fault_injector.cc')
+Source('cache_fault_injector.cc')
+Source('register_fault_injector.cc')
 DebugFlag('FI', 'Fault Injector Debug Messages')

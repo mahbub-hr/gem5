@@ -1,83 +1,117 @@
 #include "fault_injector/fault_injector.hh"
-#include "debug/FI.hh" // You need to define this debug flag
 
 #include <iostream>
 
+#include "base/output.hh"
+#include "sim/sim_exit.hh"
+
 namespace gem5
 {
-FaultInjector::FaultInjector(const FaultInjectorParams &p)
+BaseFaultInjector::BaseFaultInjector(const BaseFaultInjectorParams &p)
     : SimObject(p),
       injectionSchedule(p.inject_ticks),
-      currentInjectionIndex(0),
-      targetCache(dynamic_cast<Cache *>(p.target_object)),
-      dumpCacheContent(p.dump_cache_content),
-      sets(p.target_sets),
-      ways(p.target_ways),
-      bytePositions(p.target_byte_positions),
-      byteMasks(p.target_byte_masks),
+      resultFile(p.result_file),
+      domainName(p.domain),
+      targetComponent(p.target_component),
+      selectionMode("preselected"),
       injectEvent([this] { processEvent(); }, name())
 {
-    if (!targetCache) {
-        fatal("FaultInjector: target_object is not a Cache!");
+    for (size_t i = 0; i < injectionSchedule.size(); i++) {
+        tickToPoints[injectionSchedule[i]].push_back(i);
     }
-    std::sort(injectionSchedule.begin(), injectionSchedule.end());
+    for (const auto &entry : tickToPoints) {
+        distinctTicks.push_back(entry.first);
+    }
+    registerExitCallback([this] { writeResult(); });
 }
 
 void
-FaultInjector::startup()
+BaseFaultInjector::startup()
 {
-    // Schedule the FIRST event (if the list isn't empty)
-    if (!injectionSchedule.empty()) {
-        Tick firstTick = injectionSchedule[0];
-        
+    if (!distinctTicks.empty()) {
+        Tick firstTick = distinctTicks[0];
         if (firstTick > curTick()) {
-            schedule(injectEvent, firstTick);        }
+            schedule(injectEvent, firstTick);
+        }
     }
 }
 
 void
-FaultInjector::processEvent()
+BaseFaultInjector::processEvent()
 {
-    DPRINTF(FI,
-                "FaultInjector: set=%d, way=%d, byte_pos=%d, length=%d\n",
-                sets[currentInjectionIndex],
-                ways[currentInjectionIndex],
-                bytePositions[currentInjectionIndex],
-                byteMasks[currentInjectionIndex]);
-    
-    bool success = targetCache->MBU(
-            sets[currentInjectionIndex], 
-            ways[currentInjectionIndex], 
-            bytePositions[currentInjectionIndex], 
-            byteMasks[currentInjectionIndex]
-        );
-
-    if(dumpCacheContent){
-        targetCache->dumpCacheContent();
+    Tick t = distinctTicks[currentTickIndex];
+    std::vector<size_t> pts = tickToPoints[t];
+    selectLocations(t, pts);
+    for (size_t i : pts) {
+        bool landed = applyFault(i);
+        appliedLog.push_back({i, t, landed});
+        if (landed) {
+            flipsApplied++;
+        }
     }
+    afterTick(t);
 
-    if (success) {
-        DPRINTF(FI,
-                "FaultInjector: Success!\n"
-                );
-    } else {
-        DPRINTF(FI,
-                "FaultInjector: Missed!\n"
-                );
+    currentTickIndex++;
+    if (currentTickIndex < distinctTicks.size()) {
+        schedule(injectEvent, distinctTicks[currentTickIndex]);
     }
+}
 
-    // 3. SCHEDULE THE NEXT EVENT
-    currentInjectionIndex++; // Move to next item in list
-
-    // Check if there are more injections left
-    if (currentInjectionIndex < injectionSchedule.size()) {
-        Tick nextTick = injectionSchedule[currentInjectionIndex];
-        // already sorted, so just take the next one
-        schedule(injectEvent, nextTick);
-        DPRINTF(FI, "FaultInjector: Next fault scheduled for Tick %lu\n", nextTick);
-        
-    } else {
-        DPRINTF(FI, "FaultInjector: All injections completed.\n");
+void
+BaseFaultInjector::writeResult()
+{
+    if (resultWritten) {
+        return;
     }
+    resultWritten = true;
+
+    std::cout << "FaultInjector: flips_applied=" << flipsApplied << std::endl;
+
+    OutputStream *os = simout.create(resultFile, false);
+    if (!os || !os->stream()) {
+        warn("BaseFaultInjector: could not create result file '%s'\n",
+             resultFile);
+        return;
+    }
+    std::ostream &s = *os->stream();
+
+    s << "{\n";
+    s << "  \"schema_version\": 1,\n";
+    s << "  \"domain\": \"" << domainName << "\",\n";
+    s << "  \"target_component\": \"" << targetComponent << "\",\n";
+    s << "  \"selection_mode\": \"" << selectionMode << "\",\n";
+    s << "  \"requested_points\": " << appliedLog.size() << ",\n";
+    s << "  \"flips_applied\": " << flipsApplied << ",\n";
+
+    bool first = true;
+    s << "  \"applied\": [";
+    for (const auto &e : appliedLog) {
+        if (!e.landed) {
+            continue;
+        }
+        s << (first ? "\n" : ",\n");
+        first = false;
+        s << "    {\"tick\": " << e.tick << ", ";
+        writePointLocation(s, e.index);
+        s << "}";
+    }
+    s << (first ? "" : "\n  ") << "],\n";
+
+    first = true;
+    s << "  \"missed\": [";
+    for (const auto &e : appliedLog) {
+        if (e.landed) {
+            continue;
+        }
+        s << (first ? "\n" : ",\n");
+        first = false;
+        s << "    {\"tick\": " << e.tick << ", ";
+        writePointLocation(s, e.index);
+        s << ", \"reason\": \"not_applied\"}";
+    }
+    s << (first ? "" : "\n  ") << "]\n";
+    s << "}\n";
+
+    simout.close(os);
 }
 } // namespace gem5

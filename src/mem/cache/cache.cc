@@ -1507,7 +1507,7 @@ Cache::corruptStoredBlock(Addr addr, int bit_position)
     // 1. Ask the Tag Store if this address is currently present
     // 'tags' is the internal Gem5 object managing Sets and Ways
     CacheBlk *blk = tags->findBlock({addr, false});
-    
+
     blk->print();
     DPRINTF(FI, "Attempting to corrupt address %#x, bit position %d"
             "blk: %s\n", addr, bit_position);
@@ -1528,7 +1528,7 @@ Cache::corruptStoredBlock(Addr addr, int bit_position)
         if (byte_offset < blkSize) {
             // 5. THE FLIP (Modify the storage directly)
             raw_data[byte_offset] = 0;
-            
+
             DPRINTF(FI,
                     "!!! STORAGE FAULT: Corrupted Byte %d, Val: %#x, BLK size: %d !!!\n",
                     byte_offset, raw_data[byte_offset], blkSize);
@@ -1544,7 +1544,7 @@ void Cache::dumpCacheContent()
 {
     // We cast the tags to BaseSetAssoc to access set-specific logic
     BaseSetAssoc *set_tags = dynamic_cast<BaseSetAssoc*>(tags);
-    
+
     if (!set_tags) {
         warn("Cannot dump cache: Tags are not Set-Associative.\n");
         return;
@@ -1556,7 +1556,7 @@ void Cache::dumpCacheContent()
 
 bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask){
     BaseSetAssoc *set_tags = dynamic_cast<BaseSetAssoc*>(tags);
-    
+
     if (!set_tags) {
         warn("Cannot perform MBU: Tags are not Set-Associative.\n");
         return false;
@@ -1570,11 +1570,11 @@ bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask){
 
     if(!blk->isValid()) {
         warn("Cannot perform MBU: Block at set %d, way %d is not valid.\n", set, way);
-        return true; // Todo : return false or true? If block is not valid, it means it doesn't have valid data, so we can consider it as already "corrupted" for the purpose of MBU. Returning true to indicate MBU is effectively done, even though we didn't flip any bits.
+        return false;
     }
 
     blk->data[bytePos] = blk->data[bytePos] ^ byteMask;
-    
+
     return true;
 }
 } // namespace gem5
