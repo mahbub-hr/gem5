@@ -7,17 +7,22 @@
 #include <string>
 #include <vector>
 
+#include "base/types.hh"
 #include "params/BaseFaultInjector.hh"
 #include "sim/eventq.hh"
 #include "sim/sim_object.hh"
 
 namespace gem5
 {
+class BaseCPU;
+class ThreadContext;
+
 class BaseFaultInjector : public SimObject
 {
   public:
     BaseFaultInjector(const BaseFaultInjectorParams &p);
     void startup() override;
+    void rebindCpu(BaseCPU *newCpu);
 
   protected:
     struct AppliedRecord
@@ -31,6 +36,15 @@ class BaseFaultInjector : public SimObject
     std::map<Tick, std::vector<size_t>> tickToPoints;
     std::vector<Tick> distinctTicks;
     size_t currentTickIndex = 0;
+
+    std::vector<Counter> instSchedule;
+    std::map<Counter, std::vector<size_t>> instToPoints;
+    std::vector<Counter> distinctInsts;
+    size_t currentInstIndex = 0;
+    bool instMode = false;
+    BaseCPU *cpu = nullptr;
+    ThreadContext *armedTc = nullptr;
+
     int flipsApplied = 0;
     std::string resultFile;
     std::string domainName;
@@ -49,9 +63,13 @@ class BaseFaultInjector : public SimObject
 
   private:
     void processEvent();
+    void processInstEvent();
+    void armInstEvent(Counter target);
+    void applyPointsAt(const std::vector<size_t> &pts, Tick logTick);
     void writeResult();
     bool resultWritten = false;
     EventFunctionWrapper injectEvent;
+    EventFunctionWrapper injectInstEvent;
 };
 } // namespace gem5
 
