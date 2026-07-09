@@ -93,7 +93,8 @@ BaseFaultInjector::rebindCpu(BaseCPU *newCpu)
 }
 
 void
-BaseFaultInjector::applyPointsAt(const std::vector<size_t> &ptsIn, Tick logTick)
+BaseFaultInjector::applyPointsAt(const std::vector<size_t> &ptsIn,
+                                 Tick logTick)
 {
     std::vector<size_t> pts = ptsIn;
     selectLocations(logTick, pts);
