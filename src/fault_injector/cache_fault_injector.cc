@@ -25,8 +25,8 @@ CacheFaultInjector::applyFault(size_t i, ResolvedSite &site)
     DPRINTF(FI, "CacheFaultInjector: set=%d, way=%d, byte_pos=%d, mask=%d\n",
             sets[i], ways[i], bytePositions[i], byteMasks[i]);
     Addr paddr = 0;
-    bool success =
-        targetCache->MBU(sets[i], ways[i], bytePositions[i], byteMasks[i], &paddr);
+    bool success = targetCache->MBU(sets[i], ways[i], bytePositions[i],
+                                    byteMasks[i], &paddr);
     if (success) {
         site.hasPaddr = true;
         site.paddr = paddr;
@@ -63,8 +63,7 @@ CacheFaultInjector::armActivationWatch(size_t i)
         return false;
     }
     targetCache->watchFaultAddress(
-        site.paddr,
-        [this, i](Packet *pkt) { noteSiteAccess(i, pkt); },
+        site.paddr, [this, i](Packet *pkt) { noteSiteAccess(i, pkt); },
         [this, i](bool dataPreserved) { noteSiteEviction(i, dataPreserved); });
     DPRINTF(FI, "CacheFaultInjector: watching paddr=%#x for activation\n",
             site.paddr);

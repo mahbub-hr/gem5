@@ -109,9 +109,7 @@ class BaseFaultInjector : public SimObject
     {}
     virtual bool
     armActivationWatch(size_t pointIndex)
-    {
-        return false;
-    }
+    { return false; }
 
     bool resolveVirtualAddress(Addr paddr, Addr &vaddr) const;
     void writeResolvedSite(std::ostream &s, size_t i) const;

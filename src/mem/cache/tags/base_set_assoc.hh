@@ -259,15 +259,11 @@ class BaseSetAssoc : public BaseTags
 
     unsigned
     getNumWays() const
-    {
-        return allocAssoc;
-    }
+    { return allocAssoc; }
 
     unsigned
     getNumSets() const
-    {
-        return blks.size() / allocAssoc;
-    }
+    { return blks.size() / allocAssoc; }
 };
 
 } // namespace gem5

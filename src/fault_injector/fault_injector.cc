@@ -43,7 +43,8 @@ BaseFaultInjector::BaseFaultInjector(const BaseFaultInjectorParams &p)
         fatal("BaseFaultInjector: inject_insts requires the 'cpu' param.\n");
     }
 
-    size_t numPoints = instMode ? instSchedule.size() : injectionSchedule.size();
+    size_t numPoints =
+        instMode ? instSchedule.size() : injectionSchedule.size();
     resolvedSites.resize(numPoints);
 
     for (size_t i = 0; i < injectionSchedule.size(); i++) {

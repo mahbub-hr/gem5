@@ -1560,8 +1560,10 @@ void Cache::dumpCacheContent()
 
 }
 
-bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask,
-                Addr *outPaddr){
+bool
+Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask,
+           Addr *outPaddr)
+{
     BaseSetAssoc *set_tags = dynamic_cast<BaseSetAssoc*>(tags);
 
     if (!set_tags) {
@@ -1571,8 +1573,8 @@ bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask,
 
     if (set >= set_tags->getNumSets() || way >= set_tags->getNumWays()) {
         warn("Cannot perform MBU: set %d, way %d is outside the %d x %d "
-             "geometry of %s.\n", set, way, set_tags->getNumSets(),
-             set_tags->getNumWays(), name());
+             "geometry of %s.\n",
+             set, way, set_tags->getNumSets(), set_tags->getNumWays(), name());
         return false;
     }
 
