@@ -167,6 +167,7 @@ bool
 Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
               PacketList &writebacks)
 {
+    checkFaultWatches(pkt);
 
     if (pkt->req->isUncacheable()) {
         assert(pkt->isRequest());
@@ -967,8 +968,13 @@ Cache::serviceMSHRTargets(MSHR *mshr, const PacketPtr pkt, CacheBlk *blk)
 PacketPtr
 Cache::evictBlock(CacheBlk *blk)
 {
-    PacketPtr pkt = (blk->isSet(CacheBlk::DirtyBit) || writebackClean) ?
-        writebackBlk(blk) : cleanEvictBlk(blk);
+    bool dataPreserved = blk->isSet(CacheBlk::DirtyBit) || writebackClean;
+
+    if (faultWatchArmed) {
+        checkFaultWatchEviction(blk, regenerateBlkAddr(blk), dataPreserved);
+    }
+
+    PacketPtr pkt = dataPreserved ? writebackBlk(blk) : cleanEvictBlk(blk);
 
     invalidateBlock(blk);
 
@@ -1554,11 +1560,19 @@ void Cache::dumpCacheContent()
 
 }
 
-bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask){
+bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask,
+                Addr *outPaddr){
     BaseSetAssoc *set_tags = dynamic_cast<BaseSetAssoc*>(tags);
 
     if (!set_tags) {
         warn("Cannot perform MBU: Tags are not Set-Associative.\n");
+        return false;
+    }
+
+    if (set >= set_tags->getNumSets() || way >= set_tags->getNumWays()) {
+        warn("Cannot perform MBU: set %d, way %d is outside the %d x %d "
+             "geometry of %s.\n", set, way, set_tags->getNumSets(),
+             set_tags->getNumWays(), name());
         return false;
     }
 
@@ -1573,8 +1587,58 @@ bool Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask){
         return false;
     }
 
+    if (outPaddr) {
+        *outPaddr = set_tags->regenerateBlkAddr(blk) + bytePos;
+    }
+
     blk->data[bytePos] = blk->data[bytePos] ^ byteMask;
 
     return true;
+}
+
+void
+Cache::watchFaultAddress(Addr paddr, std::function<void(PacketPtr)> onAccess,
+                         std::function<void(bool)> onEvict)
+{
+    faultWatches.push_back({paddr, std::move(onAccess), std::move(onEvict)});
+
+    if (!faultWatchArmed) {
+        faultWatchArmed = true;
+        faultWatchMin = paddr;
+        faultWatchMax = paddr;
+    } else {
+        faultWatchMin = std::min(faultWatchMin, paddr);
+        faultWatchMax = std::max(faultWatchMax, paddr);
+    }
+}
+
+void
+Cache::notifyFaultWatchAccess(PacketPtr pkt)
+{
+    if (!pkt->isRequest() || (!pkt->isRead() && !pkt->isWrite())) {
+        return;
+    }
+
+    Addr start = pkt->getAddr();
+    Addr end = start + pkt->getSize();
+
+    for (const auto &watch : faultWatches) {
+        if (watch.paddr >= start && watch.paddr < end && watch.onAccess) {
+            watch.onAccess(pkt);
+        }
+    }
+}
+
+void
+Cache::notifyFaultWatchEviction(CacheBlk *blk, Addr blkStart,
+                                bool dataPreserved)
+{
+    Addr blkEnd = blkStart + blkSize;
+
+    for (const auto &watch : faultWatches) {
+        if (watch.paddr >= blkStart && watch.paddr < blkEnd && watch.onEvict) {
+            watch.onEvict(dataPreserved);
+        }
+    }
 }
 } // namespace gem5

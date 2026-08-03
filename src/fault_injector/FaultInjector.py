@@ -34,6 +34,16 @@ class BaseFaultInjector(SimObject):
     target_component = Param.String(
         "", "Component name emitted into the result file."
     )
+    resolve_faults = Param.Bool(
+        True,
+        "Reverse-map each landed memory flip to its virtual address (SE-mode "
+        "page-table lookup) and emit resolved_addresses in the result file.",
+    )
+    track_activation = Param.Bool(
+        True,
+        "Watch each landed memory flip until the first instruction reads the "
+        "corrupted byte, and emit that activation site in the result file.",
+    )
 
     def rebindCpu(self, new_cpu):
         self._ccObject.rebindCpu(new_cpu._ccObject)

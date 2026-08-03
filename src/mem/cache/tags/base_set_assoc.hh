@@ -256,6 +256,18 @@ class BaseSetAssoc : public BaseTags
 
     void corruptSetByAddr(Addr addr);
     void dumpCacheContent();
+
+    unsigned
+    getNumWays() const
+    {
+        return allocAssoc;
+    }
+
+    unsigned
+    getNumSets() const
+    {
+        return blks.size() / allocAssoc;
+    }
 };
 
 } // namespace gem5

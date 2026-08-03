@@ -17,7 +17,7 @@ class RegisterFaultInjector : public BaseFaultInjector
     RegisterFaultInjector(const RegisterFaultInjectorParams &p);
 
   protected:
-    bool applyFault(size_t i) override;
+    bool applyFault(size_t i, ResolvedSite &site) override;
     void writePointLocation(std::ostream &s, size_t i) const override;
 
   private:

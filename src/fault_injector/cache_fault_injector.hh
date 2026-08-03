@@ -17,9 +17,10 @@ class CacheFaultInjector : public BaseFaultInjector
     CacheFaultInjector(const CacheFaultInjectorParams &p);
 
   protected:
-    bool applyFault(size_t i) override;
+    bool applyFault(size_t i, ResolvedSite &site) override;
     void writePointLocation(std::ostream &s, size_t i) const override;
     void afterTick(Tick t) override;
+    bool armActivationWatch(size_t i) override;
 
   private:
     Cache *targetCache;

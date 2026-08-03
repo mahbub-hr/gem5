@@ -21,8 +21,9 @@ RegisterFaultInjector::RegisterFaultInjector(
 }
 
 bool
-RegisterFaultInjector::applyFault(size_t i)
+RegisterFaultInjector::applyFault(size_t i, ResolvedSite &site)
 {
+    site.kind = "register";
     if (targetCpu->numContexts() == 0) {
         warn("RegisterFaultInjector: CPU has no thread contexts\n");
         return false;

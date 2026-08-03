@@ -47,7 +47,9 @@
 #define __MEM_CACHE_CACHE_HH__
 
 #include <cstdint>
+#include <functional>
 #include <unordered_set>
+#include <vector>
 
 #include "base/compiler.hh"
 #include "base/types.hh"
@@ -157,6 +159,45 @@ class Cache : public BaseCache
      */
     bool isCachedAbove(PacketPtr pkt, bool is_timing = true);
 
+  private:
+    struct FaultWatch
+    {
+        Addr paddr;
+        std::function<void(PacketPtr)> onAccess;
+        std::function<void(bool)> onEvict;
+    };
+
+    std::vector<FaultWatch> faultWatches;
+    bool faultWatchArmed = false;
+    Addr faultWatchMin = 0;
+    Addr faultWatchMax = 0;
+
+    void notifyFaultWatchAccess(PacketPtr pkt);
+    void notifyFaultWatchEviction(CacheBlk *blk, Addr blkStart,
+                                  bool dataPreserved);
+
+    void
+    checkFaultWatches(PacketPtr pkt)
+    {
+        if (!faultWatchArmed) {
+            return;
+        }
+        Addr start = pkt->getAddr();
+        if (start > faultWatchMax || start + pkt->getSize() <= faultWatchMin) {
+            return;
+        }
+        notifyFaultWatchAccess(pkt);
+    }
+
+    void
+    checkFaultWatchEviction(CacheBlk *blk, Addr blkStart, bool dataPreserved)
+    {
+        if (blkStart > faultWatchMax || blkStart + blkSize <= faultWatchMin) {
+            return;
+        }
+        notifyFaultWatchEviction(blk, blkStart, dataPreserved);
+    }
+
   public:
     /** Instantiates a basic cache object. */
     Cache(const CacheParams &p);
@@ -179,7 +220,11 @@ class Cache : public BaseCache
      */
     bool corruptStoredBlock(Addr addr, int bit_position);
     void dumpCacheContent();
-    bool MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t);
+    bool MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t,
+             Addr *outPaddr = nullptr);
+
+    void watchFaultAddress(Addr paddr, std::function<void(PacketPtr)> onAccess,
+                           std::function<void(bool)> onEvict);
 };
 
 } // namespace gem5
