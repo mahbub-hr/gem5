@@ -51,13 +51,13 @@ elif [[ "$VER" == "22.04" ]]; then
     update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-15 150 \
         --slave /usr/bin/clang-format-diff clang-format-diff /usr/bin/clang-format-diff-15 \
         --slave /usr/bin/git-clang-format git-clang-format /usr/bin/git-clang-format-15
-        
+
     # Set it to auto mode so it defaults to the one we just installed
     update-alternatives --auto clang-format
 else
     echo "⚠️ Warning: Detected Ubuntu version $VER. gem5 officially tests on 22.04 and 24.04."
     echo "Attempting to install 22.04 baseline dependencies as a fallback..."
-    
+
     apt-get install -y build-essential git m4 scons zlib1g zlib1g-dev \
         libprotobuf-dev protobuf-compiler libprotoc-dev libgoogle-perftools-dev \
         python3-dev libboost-all-dev pkg-config python3-tk
@@ -88,5 +88,5 @@ check_version git
 echo "======================================================"
 echo "You are now ready to build gem5!"
 echo "Example build command:"
-echo "  scons build/X86/gem5.opt -j \$(nproc)"
+echo "  scons build/ARM/gem5.fast --ignore-style --linker=gold -j \$(nproc)"
 echo "======================================================"
