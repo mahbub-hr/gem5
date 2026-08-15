@@ -261,25 +261,25 @@ BaseFaultInjector::currentFrameRegisters(Addr &fp, Addr &sp) const
     RegIndex fpIdx = 0;
     RegIndex spIdx = 0;
     switch (arch) {
-      case loader::X86_64:
-      case loader::I386:
-        fpIdx = x86FlatFramePointerIdx;
-        spIdx = x86FlatStackPointerIdx;
-        break;
-      case loader::Arm64:
-        fpIdx = arm64FlatFramePointerIdx;
-        spIdx = arm64FlatStackPointerIdx;
-        break;
-      case loader::Arm:
-        fpIdx = armFlatFramePointerIdx;
-        spIdx = armFlatStackPointerIdx;
-        break;
-      case loader::Thumb:
-        fpIdx = thumbFlatFramePointerIdx;
-        spIdx = armFlatStackPointerIdx;
-        break;
-      default:
-        return false;
+        case loader::X86_64:
+        case loader::I386:
+            fpIdx = x86FlatFramePointerIdx;
+            spIdx = x86FlatStackPointerIdx;
+            break;
+        case loader::Arm64:
+            fpIdx = arm64FlatFramePointerIdx;
+            spIdx = arm64FlatStackPointerIdx;
+            break;
+        case loader::Arm:
+            fpIdx = armFlatFramePointerIdx;
+            spIdx = armFlatStackPointerIdx;
+            break;
+        case loader::Thumb:
+            fpIdx = thumbFlatFramePointerIdx;
+            spIdx = armFlatStackPointerIdx;
+            break;
+        default:
+            return false;
     }
     if (fpIdx >= intRC->numRegs() || spIdx >= intRC->numRegs()) {
         return false;
