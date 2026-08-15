@@ -52,10 +52,14 @@ class BaseFaultInjector : public SimObject
         std::string injectDisasm;
         bool hasInjectInst = false;
         Counter injectInst = 0;
+        bool hasInjectFrame = false;
+        Addr injectFp = 0;
+        Addr injectSp = 0;
 
         bool watched = false;
         bool live = false;
         bool activated = false;
+        const char *activationKind = nullptr;
         Tick activationTick = 0;
         bool hasActivationPc = false;
         Addr activationPc = 0;
@@ -66,6 +70,9 @@ class BaseFaultInjector : public SimObject
         bool hasActivationVaddr = false;
         Addr activationVaddr = 0;
         unsigned activationSize = 0;
+        bool hasActivationFrame = false;
+        Addr activationFp = 0;
+        Addr activationSp = 0;
         uint64_t reads = 0;
         uint64_t writes = 0;
         const char *endReason = nullptr;
@@ -115,14 +122,16 @@ class BaseFaultInjector : public SimObject
     void writeResolvedSite(std::ostream &s, size_t i) const;
 
     void captureInjectionContext(ResolvedSite &site) const;
-    void noteSiteAccess(size_t pointIndex, Packet *pkt);
+    void noteSiteAccess(size_t pointIndex, Packet *pkt, bool isFunctional);
     void noteSiteEviction(size_t pointIndex, bool dataPreserved);
 
     bool currentPc(Addr &pc) const;
     bool currentInstCount(Counter &count) const;
+    bool currentFrameRegisters(Addr &fp, Addr &sp) const;
     bool disassembleAt(Addr pc, std::string &text) const;
     static bool lookupSymbol(Addr addr, std::string &symbol);
     static std::string jsonEscape(const std::string &raw);
+    static std::string hexAddr(Addr addr);
 
   private:
     void processEvent();

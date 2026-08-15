@@ -163,7 +163,7 @@ class Cache : public BaseCache
     struct FaultWatch
     {
         Addr paddr;
-        std::function<void(PacketPtr)> onAccess;
+        std::function<void(PacketPtr, bool)> onAccess;
         std::function<void(bool)> onEvict;
     };
 
@@ -172,12 +172,12 @@ class Cache : public BaseCache
     Addr faultWatchMin = 0;
     Addr faultWatchMax = 0;
 
-    void notifyFaultWatchAccess(PacketPtr pkt);
+    void notifyFaultWatchAccess(PacketPtr pkt, bool isFunctional);
     void notifyFaultWatchEviction(CacheBlk *blk, Addr blkStart,
                                   bool dataPreserved);
 
     void
-    checkFaultWatches(PacketPtr pkt)
+    checkFaultWatches(PacketPtr pkt, bool isFunctional = false)
     {
         if (!faultWatchArmed) {
             return;
@@ -186,7 +186,7 @@ class Cache : public BaseCache
         if (start > faultWatchMax || start + pkt->getSize() <= faultWatchMin) {
             return;
         }
-        notifyFaultWatchAccess(pkt);
+        notifyFaultWatchAccess(pkt, isFunctional);
     }
 
     void
@@ -223,7 +223,10 @@ class Cache : public BaseCache
     bool MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t,
              Addr *outPaddr = nullptr);
 
-    void watchFaultAddress(Addr paddr, std::function<void(PacketPtr)> onAccess,
+    void functionalAccess(PacketPtr pkt, bool from_cpu_side) override;
+
+    void watchFaultAddress(Addr paddr,
+                           std::function<void(PacketPtr, bool)> onAccess,
                            std::function<void(bool)> onEvict);
 };
 

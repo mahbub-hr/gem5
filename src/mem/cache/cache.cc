@@ -1599,7 +1599,20 @@ Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask,
 }
 
 void
-Cache::watchFaultAddress(Addr paddr, std::function<void(PacketPtr)> onAccess,
+Cache::functionalAccess(PacketPtr pkt, bool from_cpu_side)
+{
+    // A functional read is how SE-mode syscalls copy a buffer out of the
+    // program (SETranslatingPortProxy), and BaseCache::functionalAccess serves
+    // it straight from blk->data -- so a corrupted byte can reach the program
+    // output without any demand access ever reaching Cache::access().
+    checkFaultWatches(pkt, true);
+
+    BaseCache::functionalAccess(pkt, from_cpu_side);
+}
+
+void
+Cache::watchFaultAddress(Addr paddr,
+                         std::function<void(PacketPtr, bool)> onAccess,
                          std::function<void(bool)> onEvict)
 {
     faultWatches.push_back({paddr, std::move(onAccess), std::move(onEvict)});
@@ -1615,9 +1628,9 @@ Cache::watchFaultAddress(Addr paddr, std::function<void(PacketPtr)> onAccess,
 }
 
 void
-Cache::notifyFaultWatchAccess(PacketPtr pkt)
+Cache::notifyFaultWatchAccess(PacketPtr pkt, bool isFunctional)
 {
-    if (!pkt->isRequest() || (!pkt->isRead() && !pkt->isWrite())) {
+    if (!pkt->isRead() && !pkt->isWrite()) {
         return;
     }
 
@@ -1626,7 +1639,7 @@ Cache::notifyFaultWatchAccess(PacketPtr pkt)
 
     for (const auto &watch : faultWatches) {
         if (watch.paddr >= start && watch.paddr < end && watch.onAccess) {
-            watch.onAccess(pkt);
+            watch.onAccess(pkt, isFunctional);
         }
     }
 }

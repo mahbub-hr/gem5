@@ -2,14 +2,18 @@
 
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 
 #include <memory>
 
 #include "arch/generic/decoder.hh"
+#include "arch/generic/isa.hh"
 #include "arch/generic/pcstate.hh"
+#include "base/loader/object_file.hh"
 #include "base/loader/symtab.hh"
 #include "base/output.hh"
 #include "cpu/base.hh"
+#include "cpu/reg_class.hh"
 #include "cpu/static_inst.hh"
 #include "cpu/thread_context.hh"
 #include "mem/packet.hh"
@@ -20,6 +24,18 @@
 
 namespace gem5
 {
+namespace
+{
+constexpr RegIndex x86FlatFramePointerIdx = 5;
+constexpr RegIndex x86FlatStackPointerIdx = 4;
+constexpr RegIndex arm64FlatFramePointerIdx = 32;
+constexpr RegIndex arm64FlatStackPointerIdx = 38;
+constexpr RegIndex armFlatFramePointerIdx = 11;
+constexpr RegIndex thumbFlatFramePointerIdx = 7;
+constexpr RegIndex armFlatStackPointerIdx = 13;
+constexpr Addr addrMask32 = 0xffffffffULL;
+} // namespace
+
 BaseFaultInjector::BaseFaultInjector(const BaseFaultInjectorParams &p)
     : SimObject(p),
       injectionSchedule(p.inject_ticks),
@@ -219,6 +235,63 @@ BaseFaultInjector::currentInstCount(Counter &count) const
 }
 
 bool
+BaseFaultInjector::currentFrameRegisters(Addr &fp, Addr &sp) const
+{
+    if (!cpu) {
+        return false;
+    }
+    ThreadContext *tc = cpu->getContext(0);
+    if (!tc) {
+        return false;
+    }
+    Process *p = tc->getProcessPtr();
+    if (!p || !p->objFile) {
+        return false;
+    }
+    BaseISA *isa = tc->getIsaPtr();
+    if (!isa) {
+        return false;
+    }
+    const RegClass *intRC = isa->regClasses().at(IntRegClass);
+    if (!intRC || !intRC->isFlat()) {
+        return false;
+    }
+
+    loader::Arch arch = p->objFile->getArch();
+    RegIndex fpIdx = 0;
+    RegIndex spIdx = 0;
+    switch (arch) {
+      case loader::X86_64:
+      case loader::I386:
+        fpIdx = x86FlatFramePointerIdx;
+        spIdx = x86FlatStackPointerIdx;
+        break;
+      case loader::Arm64:
+        fpIdx = arm64FlatFramePointerIdx;
+        spIdx = arm64FlatStackPointerIdx;
+        break;
+      case loader::Arm:
+        fpIdx = armFlatFramePointerIdx;
+        spIdx = armFlatStackPointerIdx;
+        break;
+      case loader::Thumb:
+        fpIdx = thumbFlatFramePointerIdx;
+        spIdx = armFlatStackPointerIdx;
+        break;
+      default:
+        return false;
+    }
+    if (fpIdx >= intRC->numRegs() || spIdx >= intRC->numRegs()) {
+        return false;
+    }
+
+    Addr mask = loader::archIs64Bit(arch) ? ~Addr(0) : addrMask32;
+    fp = static_cast<Addr>(tc->getReg((*intRC)[fpIdx])) & mask;
+    sp = static_cast<Addr>(tc->getReg((*intRC)[spIdx])) & mask;
+    return true;
+}
+
+bool
 BaseFaultInjector::lookupSymbol(Addr addr, std::string &symbol)
 {
     auto it = loader::debugSymbolTable.findNearest(addr);
@@ -295,6 +368,14 @@ BaseFaultInjector::jsonEscape(const std::string &raw)
     return out;
 }
 
+std::string
+BaseFaultInjector::hexAddr(Addr addr)
+{
+    std::ostringstream ss;
+    ss << "0x" << std::hex << addr;
+    return ss.str();
+}
+
 void
 BaseFaultInjector::captureInjectionContext(ResolvedSite &site) const
 {
@@ -310,10 +391,18 @@ BaseFaultInjector::captureInjectionContext(ResolvedSite &site) const
         site.hasInjectInst = true;
         site.injectInst = count;
     }
+    Addr fp = 0;
+    Addr sp = 0;
+    if (currentFrameRegisters(fp, sp)) {
+        site.hasInjectFrame = true;
+        site.injectFp = fp;
+        site.injectSp = sp;
+    }
 }
 
 void
-BaseFaultInjector::noteSiteAccess(size_t pointIndex, Packet *pkt)
+BaseFaultInjector::noteSiteAccess(size_t pointIndex, Packet *pkt,
+                                  bool isFunctional)
 {
     ResolvedSite &r = resolvedSites[pointIndex];
     if (!r.live) {
@@ -324,23 +413,40 @@ BaseFaultInjector::noteSiteAccess(size_t pointIndex, Packet *pkt)
         r.reads++;
         if (!r.activated) {
             r.activated = true;
+            r.activationKind = isFunctional ? "functional" : "load";
             r.activationTick = curTick();
             r.activationSize = pkt->getSize();
-            if (pkt->req) {
+            if (!isFunctional && pkt->req) {
                 if (pkt->req->hasPC()) {
                     r.hasActivationPc = true;
                     r.activationPc = pkt->req->getPC();
-                    lookupSymbol(r.activationPc, r.activationSymbol);
                 }
                 if (pkt->req->hasVaddr()) {
                     r.hasActivationVaddr = true;
                     r.activationVaddr = pkt->req->getVaddr();
                 }
             }
+            if (!r.hasActivationPc) {
+                Addr pc = 0;
+                if (currentPc(pc)) {
+                    r.hasActivationPc = true;
+                    r.activationPc = pc;
+                }
+            }
+            if (r.hasActivationPc) {
+                lookupSymbol(r.activationPc, r.activationSymbol);
+            }
             Counter count = 0;
             if (currentInstCount(count)) {
                 r.hasActivationInst = true;
                 r.activationInst = count;
+            }
+            Addr fp = 0;
+            Addr sp = 0;
+            if (currentFrameRegisters(fp, sp)) {
+                r.hasActivationFrame = true;
+                r.activationFp = fp;
+                r.activationSp = sp;
             }
         }
     }
@@ -348,7 +454,7 @@ BaseFaultInjector::noteSiteAccess(size_t pointIndex, Packet *pkt)
     if (pkt->isWrite()) {
         r.writes++;
         r.live = false;
-        r.endReason = "overwritten";
+        r.endReason = isFunctional ? "overwritten_syscall" : "overwritten";
         r.hasEndTick = true;
         r.endTick = curTick();
     }
@@ -391,6 +497,12 @@ BaseFaultInjector::writeInjectionContext(std::ostream &s, size_t i) const
     } else {
         s << ", \"inject_inst_count\": null";
     }
+    if (r.hasInjectFrame) {
+        s << ", \"frame_address\": \"" << hexAddr(r.injectFp) << "\""
+          << ", \"stack_pointer\": \"" << hexAddr(r.injectSp) << "\"";
+    } else {
+        s << ", \"frame_address\": null, \"stack_pointer\": null";
+    }
 }
 
 void
@@ -399,6 +511,11 @@ BaseFaultInjector::writeActivation(std::ostream &s, size_t i) const
     const ResolvedSite &r = resolvedSites[i];
     s << ", \"activation\": {\"watched\": " << (r.watched ? "true" : "false")
       << ", \"activated\": " << (r.activated ? "true" : "false");
+    if (r.activationKind) {
+        s << ", \"kind\": \"" << r.activationKind << "\"";
+    } else {
+        s << ", \"kind\": null";
+    }
     if (r.activated) {
         s << ", \"tick\": " << r.activationTick;
         s << ", \"delay_ticks\": " << (r.activationTick - r.injectTick);
@@ -439,6 +556,12 @@ BaseFaultInjector::writeActivation(std::ostream &s, size_t i) const
         s << ", \"access_size\": " << r.activationSize;
     } else {
         s << ", \"access_size\": null";
+    }
+    if (r.hasActivationFrame) {
+        s << ", \"frame_address\": \"" << hexAddr(r.activationFp) << "\""
+          << ", \"stack_pointer\": \"" << hexAddr(r.activationSp) << "\"";
+    } else {
+        s << ", \"frame_address\": null, \"stack_pointer\": null";
     }
     s << ", \"reads\": " << r.reads << ", \"writes\": " << r.writes;
     if (r.endReason) {
@@ -502,7 +625,7 @@ BaseFaultInjector::writeResult()
     std::ostream &s = *os->stream();
 
     s << "{\n";
-    s << "  \"schema_version\": 3,\n";
+    s << "  \"schema_version\": 4,\n";
     s << "  \"domain\": \"" << domainName << "\",\n";
     s << "  \"target_component\": \"" << targetComponent << "\",\n";
     s << "  \"selection_mode\": \"" << selectionMode << "\",\n";

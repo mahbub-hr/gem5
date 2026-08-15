@@ -63,7 +63,10 @@ CacheFaultInjector::armActivationWatch(size_t i)
         return false;
     }
     targetCache->watchFaultAddress(
-        site.paddr, [this, i](Packet *pkt) { noteSiteAccess(i, pkt); },
+        site.paddr,
+        [this, i](Packet *pkt, bool isFunctional) {
+            noteSiteAccess(i, pkt, isFunctional);
+        },
         [this, i](bool dataPreserved) { noteSiteEviction(i, dataPreserved); });
     DPRINTF(FI, "CacheFaultInjector: watching paddr=%#x for activation\n",
             site.paddr);
