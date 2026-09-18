@@ -15,6 +15,7 @@ class RegisterFaultInjector : public BaseFaultInjector
 {
   public:
     RegisterFaultInjector(const RegisterFaultInjectorParams &p);
+    void rebindCpu(BaseCPU *newCpu) override;
 
   protected:
     bool applyFault(size_t i, ResolvedSite &site) override;

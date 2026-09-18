@@ -18,6 +18,21 @@ RegisterFaultInjector::RegisterFaultInjector(
     if (!targetCpu) {
         fatal("RegisterFaultInjector: target_object is not a BaseCPU!");
     }
+    if (registers.size() != resolvedSites.size() ||
+        byteIndices.size() != resolvedSites.size() ||
+        byteMasks.size() != resolvedSites.size()) {
+        fatal("RegisterFaultInjector: registers/byteIndices/byteMasks/sites "
+              "size mismatch (%d/%d/%d/%d)\n",
+              registers.size(), byteIndices.size(), byteMasks.size(),
+              resolvedSites.size());
+    }
+}
+
+void
+RegisterFaultInjector::rebindCpu(BaseCPU *newCpu)
+{
+    targetCpu = newCpu;
+    BaseFaultInjector::rebindCpu(newCpu);
 }
 
 bool
@@ -34,6 +49,12 @@ RegisterFaultInjector::applyFault(size_t i, ResolvedSite &site)
     if (registers[i] >= intRC.numRegs()) {
         warn("RegisterFaultInjector: register index %d out of range (%d)\n",
              registers[i], intRC.numRegs());
+        return false;
+    }
+    if (byteIndices[i] > 7 || byteMasks[i] > 0xFF) {
+        warn("RegisterFaultInjector: byte index/mask out of range "
+             "(byte=%d, mask=%d)\n",
+             byteIndices[i], byteMasks[i]);
         return false;
     }
     RegId rid = intRC[registers[i]];

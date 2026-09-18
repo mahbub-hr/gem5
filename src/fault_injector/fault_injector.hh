@@ -25,7 +25,7 @@ class BaseFaultInjector : public SimObject
   public:
     BaseFaultInjector(const BaseFaultInjectorParams &p);
     void startup() override;
-    void rebindCpu(BaseCPU *newCpu);
+    virtual void rebindCpu(BaseCPU *newCpu);
 
   protected:
     struct AppliedRecord
