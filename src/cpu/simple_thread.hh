@@ -43,6 +43,8 @@
 #define __CPU_SIMPLE_THREAD_HH__
 
 #include <algorithm>
+#include <functional>
+#include <utility>
 #include <vector>
 
 #include "arch/generic/htm.hh"
@@ -111,7 +113,41 @@ class SimpleThread : public ThreadState, public ThreadContext
     /** True if the memory access should be skipped for this instruction */
     bool memAccPredicate;
 
+    std::vector<std::pair<RegId, std::function<void(bool)>>> regWatches;
+    bool regWatchSuspended = false;
+
+    void
+    fireRegWatches(const RegId &flat, bool isWrite) const
+    {
+        if (regWatches.empty() || regWatchSuspended) {
+            return;
+        }
+        for (const auto &w : regWatches) {
+            if (w.first == flat) {
+                w.second(isWrite);
+            }
+        }
+    }
+
   public:
+    void
+    watchReg(const RegId &flat, std::function<void(bool)> cb)
+    {
+        regWatches.emplace_back(flat, std::move(cb));
+    }
+
+    void
+    clearRegWatches()
+    {
+        regWatches.clear();
+    }
+
+    void
+    suspendRegWatches(bool s)
+    {
+        regWatchSuspended = s;
+    }
+
     std::string
     name() const
     {
@@ -322,6 +358,7 @@ class SimpleThread : public ThreadState, public ThreadContext
         RegVal val = reg_file.reg(idx);
         DPRINTFV(reg_class.debug(), "Reading %s reg %s (%d) as %#x.\n",
                 reg.className(), reg_class.regName(arch_reg), idx, val);
+        fireRegWatches(reg, false);
         return val;
     }
 
@@ -339,6 +376,7 @@ class SimpleThread : public ThreadState, public ThreadContext
         DPRINTFV(reg_class.debug(), "Reading %s register %s (%d) as %s.\n",
                 reg.className(), reg_class.regName(arch_reg), idx,
                 reg_class.valString(val));
+        fireRegWatches(reg, false);
     }
 
     void *
@@ -348,6 +386,8 @@ class SimpleThread : public ThreadState, public ThreadContext
         const RegIndex idx = reg.index();
         auto &reg_file = regFiles[reg.classValue()];
 
+        fireRegWatches(reg, false);
+        fireRegWatches(reg, true);
         return reg_file.ptr(idx);
     }
 
@@ -366,6 +406,7 @@ class SimpleThread : public ThreadState, public ThreadContext
 
         DPRINTFV(reg_class.debug(), "Setting %s register %s (%d) to %#x.\n",
                 reg.className(), reg_class.regName(arch_reg), idx, val);
+        fireRegWatches(reg, true);
         reg_file.reg(idx) = val;
     }
 
@@ -382,6 +423,7 @@ class SimpleThread : public ThreadState, public ThreadContext
         DPRINTFV(reg_class.debug(), "Setting %s register %s (%d) to %s.\n",
                 reg.className(), reg_class.regName(arch_reg), idx,
                 reg_class.valString(val));
+        fireRegWatches(reg, true);
         reg_file.set(idx, val);
     }
 

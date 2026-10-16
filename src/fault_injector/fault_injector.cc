@@ -128,6 +128,7 @@ void
 BaseFaultInjector::applyPointsAt(const std::vector<size_t> &ptsIn,
                                  Tick logTick)
 {
+    suspendTargetWatches(true);
     std::vector<size_t> pts = ptsIn;
     selectLocations(logTick, pts);
     for (size_t i : pts) {
@@ -145,12 +146,15 @@ BaseFaultInjector::applyPointsAt(const std::vector<size_t> &ptsIn,
                 resolvedSites[i].endReason = "tracking_disabled";
             } else if (armActivationWatch(i)) {
                 resolvedSites[i].watched = true;
-                resolvedSites[i].live = true;
+                if (!resolvedSites[i].activated) {
+                    resolvedSites[i].live = true;
+                }
             } else {
                 resolvedSites[i].endReason = "tracking_unsupported";
             }
         }
     }
+    suspendTargetWatches(false);
     afterTick(logTick);
 }
 
@@ -471,6 +475,56 @@ BaseFaultInjector::noteSiteEviction(size_t pointIndex, bool dataPreserved)
     r.endReason = "evicted_clean";
     r.hasEndTick = true;
     r.endTick = curTick();
+}
+
+void
+BaseFaultInjector::noteRegisterAccess(size_t pointIndex, bool isWrite)
+{
+    if (inNoteRegisterAccess) {
+        return;
+    }
+    inNoteRegisterAccess = true;
+
+    ResolvedSite &r = resolvedSites[pointIndex];
+    if (!r.live) {
+        inNoteRegisterAccess = false;
+        return;
+    }
+
+    if (!isWrite) {
+        r.reads++;
+        if (!r.activated) {
+            r.activated = true;
+            r.activationKind = "register_read";
+            r.activationTick = curTick();
+            Addr pc = 0;
+            if (currentPc(pc)) {
+                r.hasActivationPc = true;
+                r.activationPc = pc;
+                lookupSymbol(r.activationPc, r.activationSymbol);
+            }
+            Counter count = 0;
+            if (currentInstCount(count)) {
+                r.hasActivationInst = true;
+                r.activationInst = count;
+            }
+            Addr fp = 0;
+            Addr sp = 0;
+            if (currentFrameRegisters(fp, sp)) {
+                r.hasActivationFrame = true;
+                r.activationFp = fp;
+                r.activationSp = sp;
+            }
+        }
+    } else {
+        r.writes++;
+        r.live = false;
+        r.endReason = "overwritten";
+        r.hasEndTick = true;
+        r.endTick = curTick();
+    }
+
+    inNoteRegisterAccess = false;
 }
 
 void

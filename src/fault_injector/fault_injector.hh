@@ -105,6 +105,7 @@ class BaseFaultInjector : public SimObject
     bool resolveFaults;
     bool trackActivation;
     std::vector<ResolvedSite> resolvedSites;
+    bool inNoteRegisterAccess = false;
 
     virtual void
     selectLocations(Tick t, std::vector<size_t> &pts)
@@ -117,6 +118,9 @@ class BaseFaultInjector : public SimObject
     virtual bool
     armActivationWatch(size_t pointIndex)
     { return false; }
+    virtual void
+    suspendTargetWatches(bool suspend)
+    {}
 
     bool resolveVirtualAddress(Addr paddr, Addr &vaddr) const;
     void writeResolvedSite(std::ostream &s, size_t i) const;
@@ -124,6 +128,7 @@ class BaseFaultInjector : public SimObject
     void captureInjectionContext(ResolvedSite &site) const;
     void noteSiteAccess(size_t pointIndex, Packet *pkt, bool isFunctional);
     void noteSiteEviction(size_t pointIndex, bool dataPreserved);
+    void noteRegisterAccess(size_t pointIndex, bool isWrite);
 
     bool currentPc(Addr &pc) const;
     bool currentInstCount(Counter &count) const;

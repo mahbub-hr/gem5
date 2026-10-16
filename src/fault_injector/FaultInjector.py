@@ -86,3 +86,8 @@ class RegisterFaultInjector(BaseFaultInjector):
     target_byte_masks = VectorParam.UInt32(
         [], "The list of byte masks to use for flipping bits."
     )
+    pc_register_index = Param.Int(
+        "Index within target_registers' IntRegClass numbering that denotes "
+        "the PC (flip goes to pcState); -1 if the ISA keeps no PC in the "
+        "integer file."
+    )
