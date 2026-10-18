@@ -79,6 +79,8 @@ RegisterFaultInjector::applyFault(size_t i, ResolvedSite &site)
         tc->pcState(*pc);
         lastPointWasPc = true;
         lastPointOriginalPc = pcFlipOriginal;
+        site.hasInjectPc = true;
+        site.injectPc = pcFlipOriginal;
         lastPointCorruptedPc = newAddr;
         DPRINTF(FI, "RegisterFaultInjector: pc flip byte=%d, mask=%d, "
                 "old_pc=%#x, new_pc=%#x\n",
@@ -109,18 +111,11 @@ RegisterFaultInjector::armActivationWatch(size_t i)
         registers[i] == static_cast<uint32_t>(pcRegisterIndex)) {
         ResolvedSite &r = resolvedSites[i];
 
-        r.hasInjectPc = true;
-        r.injectPc = lastPointOriginalPc;
-        r.injectSymbol.clear();
-        lookupSymbol(r.injectPc, r.injectSymbol);
-
         r.activated = true;
         r.activationKind = "pc_fetch";
         r.activationTick = curTick();
         r.hasActivationPc = true;
         r.activationPc = lastPointOriginalPc;
-        r.activationSymbol.clear();
-        lookupSymbol(r.activationPc, r.activationSymbol);
         r.hasActivationVaddr = true;
         r.activationVaddr = lastPointCorruptedPc;
 
@@ -137,11 +132,14 @@ RegisterFaultInjector::armActivationWatch(size_t i)
             r.activationSp = sp;
         }
 
+        journalActivated(i);
+
         r.reads = 1;
         r.live = false;
         r.endReason = "consumed_by_fetch";
         r.hasEndTick = true;
         r.endTick = curTick();
+        journalWatchEnded(i);
         return true;
     }
 

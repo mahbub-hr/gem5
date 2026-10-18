@@ -2,6 +2,7 @@
 #define __FAULT_INJECTOR_HH__
 
 #include <cstdint>
+#include <fstream>
 #include <map>
 #include <ostream>
 #include <string>
@@ -28,13 +29,6 @@ class BaseFaultInjector : public SimObject
     virtual void rebindCpu(BaseCPU *newCpu);
 
   protected:
-    struct AppliedRecord
-    {
-        size_t index;
-        Tick tick;
-        bool landed;
-    };
-
     struct ResolvedSite
     {
         bool landed = false;
@@ -48,8 +42,6 @@ class BaseFaultInjector : public SimObject
         Tick injectTick = 0;
         bool hasInjectPc = false;
         Addr injectPc = 0;
-        std::string injectSymbol;
-        std::string injectDisasm;
         bool hasInjectInst = false;
         Counter injectInst = 0;
         bool hasInjectFrame = false;
@@ -63,8 +55,6 @@ class BaseFaultInjector : public SimObject
         Tick activationTick = 0;
         bool hasActivationPc = false;
         Addr activationPc = 0;
-        std::string activationSymbol;
-        std::string activationDisasm;
         bool hasActivationInst = false;
         Counter activationInst = 0;
         bool hasActivationVaddr = false;
@@ -93,14 +83,11 @@ class BaseFaultInjector : public SimObject
     BaseCPU *cpu = nullptr;
     ThreadContext *armedTc = nullptr;
 
-    int flipsApplied = 0;
-    std::string resultFile;
     std::string domainName;
     std::string targetComponent;
     std::string selectionMode;
-    std::vector<AppliedRecord> appliedLog;
-
-    static const unsigned maxDecodeChunks = 8;
+    std::string journalFile;
+    std::ofstream journal;
 
     bool resolveFaults;
     bool trackActivation;
@@ -129,12 +116,12 @@ class BaseFaultInjector : public SimObject
     void noteSiteAccess(size_t pointIndex, Packet *pkt, bool isFunctional);
     void noteSiteEviction(size_t pointIndex, bool dataPreserved);
     void noteRegisterAccess(size_t pointIndex, bool isWrite);
+    void journalActivated(size_t i);
+    void journalWatchEnded(size_t i);
 
     bool currentPc(Addr &pc) const;
     bool currentInstCount(Counter &count) const;
     bool currentFrameRegisters(Addr &fp, Addr &sp) const;
-    bool disassembleAt(Addr pc, std::string &text) const;
-    static bool lookupSymbol(Addr addr, std::string &symbol);
     static std::string jsonEscape(const std::string &raw);
     static std::string hexAddr(Addr addr);
 
@@ -144,9 +131,8 @@ class BaseFaultInjector : public SimObject
     void armInstEvent(Counter target);
     void applyPointsAt(const std::vector<size_t> &pts, Tick logTick);
     void writeInjectionContext(std::ostream &s, size_t i) const;
-    void writeActivation(std::ostream &s, size_t i) const;
-    void writeResult();
-    bool resultWritten = false;
+    void journalLine(const std::string &line);
+    void journalApplied(size_t i, Tick logTick);
     EventFunctionWrapper injectEvent;
     EventFunctionWrapper injectInstEvent;
 };

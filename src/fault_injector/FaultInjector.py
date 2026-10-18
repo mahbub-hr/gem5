@@ -11,6 +11,10 @@ class BaseFaultInjector(SimObject):
         PyBindMethod("rebindCpu"),
     ]
 
+    journal_file = Param.String(
+        "Append-only JSONL event journal written to the run output directory."
+    )
+
     inject_ticks = VectorParam.Tick(
         [], "A list of ticks at which to inject faults."
     )
@@ -26,10 +30,6 @@ class BaseFaultInjector(SimObject):
         "injection; required when inject_insts is non-empty.",
     )
     target_object = Param.SimObject("the object to inject faults into")
-    result_file = Param.String(
-        "injection_result.json",
-        "Sidecar JSON result file written to the run output directory.",
-    )
     domain = Param.String("base", "Domain tag emitted into the result file.")
     target_component = Param.String(
         "", "Component name emitted into the result file."

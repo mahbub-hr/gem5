@@ -2608,7 +2608,7 @@ tgkillFunc(SyscallDesc *desc, ThreadContext *tc, int tgid, int tid, int sig)
         return -ESRCH;
 
     if (sig == OS::TGT_SIGABRT)
-        exitGroupFunc(desc, tc, 0);
+        exitGroupFunc(desc, tc, 134);
 
     return 0;
 }
