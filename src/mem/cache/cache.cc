@@ -1562,7 +1562,7 @@ void Cache::dumpCacheContent()
 
 bool
 Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask,
-           Addr *outPaddr)
+           Addr *outPaddr, bool *outInvalid)
 {
     BaseSetAssoc *set_tags = dynamic_cast<BaseSetAssoc*>(tags);
 
@@ -1584,14 +1584,9 @@ Cache::MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t byteMask,
         return false;
     }
 
-    if(!blk->isValid()) {
-        warn("Cannot perform MBU: Block at set %d, way %d is not valid.\n", set, way);
-        return false;
-    }
+    *outInvalid = !blk->isValid();
 
-    if (outPaddr) {
-        *outPaddr = set_tags->regenerateBlkAddr(blk) + bytePos;
-    }
+    *outPaddr = set_tags->regenerateBlkAddr(blk) + bytePos;
 
     blk->data[bytePos] = blk->data[bytePos] ^ byteMask;
 

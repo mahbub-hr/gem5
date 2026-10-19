@@ -28,6 +28,7 @@ class CacheFaultInjector : public BaseFaultInjector
     std::vector<uint32_t> ways;
     std::vector<uint32_t> bytePositions;
     std::vector<uint32_t> byteMasks;
+    std::vector<bool> invalidBlocks;
     bool dumpCacheContent = false;
 };
 } // namespace gem5

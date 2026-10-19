@@ -50,6 +50,7 @@ class BaseFaultInjector : public SimObject
 
         bool watched = false;
         bool live = false;
+        bool writtenBack = false;
         bool activated = false;
         const char *activationKind = nullptr;
         Tick activationTick = 0;
@@ -117,6 +118,7 @@ class BaseFaultInjector : public SimObject
     void noteSiteEviction(size_t pointIndex, bool dataPreserved);
     void noteRegisterAccess(size_t pointIndex, bool isWrite);
     void journalActivated(size_t i);
+    void journalWrittenBack(size_t i);
     void journalWatchEnded(size_t i);
 
     bool currentPc(Addr &pc) const;
