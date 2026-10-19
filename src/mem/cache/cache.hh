@@ -221,7 +221,7 @@ class Cache : public BaseCache
     bool corruptStoredBlock(Addr addr, int bit_position);
     void dumpCacheContent();
     bool MBU(uint32_t set, uint32_t way, uint32_t bytePos, uint8_t,
-             Addr *outPaddr = nullptr);
+             Addr *outPaddr, bool *outInvalid);
 
     void functionalAccess(PacketPtr pkt, bool from_cpu_side) override;
 

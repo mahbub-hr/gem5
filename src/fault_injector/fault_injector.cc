@@ -406,7 +406,17 @@ void
 BaseFaultInjector::noteSiteEviction(size_t pointIndex, bool dataPreserved)
 {
     ResolvedSite &r = resolvedSites[pointIndex];
-    if (!r.live || dataPreserved) {
+    if (!r.live) {
+        return;
+    }
+    if (dataPreserved) {
+        if (!r.writtenBack) {
+            r.writtenBack = true;
+            journalWrittenBack(pointIndex);
+        }
+        return;
+    }
+    if (r.writtenBack) {
         return;
     }
     r.live = false;
@@ -527,6 +537,15 @@ BaseFaultInjector::journalActivated(size_t i)
         s << ",\"frame_address\":null,\"stack_pointer\":null";
     }
     s << "}";
+    journalLine(s.str());
+}
+
+void
+BaseFaultInjector::journalWrittenBack(size_t i)
+{
+    std::ostringstream s;
+    s << "{\"event\":\"written_back\",\"tick\":" << curTick()
+      << ",\"index\":" << i << "}";
     journalLine(s.str());
 }
 

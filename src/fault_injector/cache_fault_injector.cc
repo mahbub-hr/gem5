@@ -11,6 +11,7 @@ CacheFaultInjector::CacheFaultInjector(const CacheFaultInjectorParams &p)
       ways(p.target_ways),
       bytePositions(p.target_byte_positions),
       byteMasks(p.target_byte_masks),
+      invalidBlocks(p.target_sets.size(), false),
       dumpCacheContent(p.dump_cache_content)
 {
     if (!targetCache) {
@@ -25,9 +26,11 @@ CacheFaultInjector::applyFault(size_t i, ResolvedSite &site)
     DPRINTF(FI, "CacheFaultInjector: set=%d, way=%d, byte_pos=%d, mask=%d\n",
             sets[i], ways[i], bytePositions[i], byteMasks[i]);
     Addr paddr = 0;
+    bool invalid = false;
     bool success = targetCache->MBU(sets[i], ways[i], bytePositions[i],
-                                    byteMasks[i], &paddr);
+                                    byteMasks[i], &paddr, &invalid);
     if (success) {
+        invalidBlocks[i] = invalid;
         site.hasPaddr = true;
         site.paddr = paddr;
         if (resolveFaults) {
@@ -52,7 +55,8 @@ void
 CacheFaultInjector::writePointLocation(std::ostream &s, size_t i) const
 {
     s << "\"set\": " << sets[i] << ", \"way\": " << ways[i]
-      << ", \"byte\": " << bytePositions[i] << ", \"mask\": " << byteMasks[i];
+      << ", \"byte\": " << bytePositions[i] << ", \"mask\": " << byteMasks[i]
+      << ", \"invalid_block\": " << (invalidBlocks[i] ? "true" : "false");
 }
 
 bool
