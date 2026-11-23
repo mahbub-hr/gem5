@@ -1,3 +1,4 @@
+from m5.objects.Probe import ProbeListenerObject
 from m5.params import *
 from m5.SimObject import *
 
@@ -90,4 +91,35 @@ class RegisterFaultInjector(BaseFaultInjector):
         "Index within target_registers' IntRegClass numbering that denotes "
         "the PC (flip goes to pcState); -1 if the ISA keeps no PC in the "
         "integer file."
+    )
+
+
+class AllocationTracer(ProbeListenerObject):
+    type = "AllocationTracer"
+    cxx_header = "fault_injector/allocation_tracer.hh"
+    cxx_class = "gem5::AllocationTracer"
+
+    cpu = Param.BaseCPU("CPU whose retired instructions are observed.")
+    trace_file = Param.String(
+        "JSONL allocation trace, written to the run output directory."
+    )
+    functions = VectorParam.String(
+        "Allocator symbols to trace, e.g. malloc calloc realloc free."
+    )
+
+
+class RegionTracer(ProbeListenerObject):
+    type = "RegionTracer"
+    cxx_header = "fault_injector/region_tracer.hh"
+    cxx_class = "gem5::RegionTracer"
+
+    cpu = Param.BaseCPU("CPU whose retired instructions are observed.")
+    trace_file = Param.String(
+        "Region trace, written to the run output directory."
+    )
+    program_starts = VectorParam.Addr(
+        "Inclusive start addresses of the program code ranges."
+    )
+    program_ends = VectorParam.Addr(
+        "Exclusive end addresses of the program code ranges."
     )
