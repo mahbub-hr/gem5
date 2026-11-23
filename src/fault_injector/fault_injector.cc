@@ -102,9 +102,9 @@ BaseFaultInjector::armInstEvent(Counter target)
     if (armedTc != nullptr && injectInstEvent.scheduled()) {
         armedTc->descheduleInstCountEvent(&injectInstEvent);
     }
-    Tick targetTick = static_cast<Tick>(target);
     Tick now = tc->getCurrentInstCount();
-    if (targetTick > now) {
+    Tick targetTick = static_cast<Tick>(target) - instBase;
+    if (target > instBase + now) {
         armedTc = tc;
         tc->scheduleInstCountEvent(&injectInstEvent, targetTick);
     } else {
@@ -116,6 +116,10 @@ BaseFaultInjector::armInstEvent(Counter target)
 void
 BaseFaultInjector::rebindCpu(BaseCPU *newCpu)
 {
+    if (!cpu) {
+        fatal("%s: rebindCpu without a bound CPU", name());
+    }
+    instBase += cpu->getContext(0)->getCurrentInstCount();
     cpu = newCpu;
     if (instMode && currentInstIndex < distinctInsts.size()) {
         armInstEvent(distinctInsts[currentInstIndex]);
@@ -233,7 +237,7 @@ BaseFaultInjector::currentInstCount(Counter &count) const
     if (!tc) {
         return false;
     }
-    count = static_cast<Counter>(tc->getCurrentInstCount());
+    count = static_cast<Counter>(tc->getCurrentInstCount()) + instBase;
     return true;
 }
 

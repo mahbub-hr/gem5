@@ -80,6 +80,7 @@ class BaseFaultInjector : public SimObject
     std::map<Counter, std::vector<size_t>> instToPoints;
     std::vector<Counter> distinctInsts;
     size_t currentInstIndex = 0;
+    Counter instBase = 0;
     bool instMode = false;
     BaseCPU *cpu = nullptr;
     ThreadContext *armedTc = nullptr;
